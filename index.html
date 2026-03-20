@@ -2801,6 +2801,52 @@ function RelicboundGame({gameMode,difficulty}){
     return true;
   };
 
+  // AI move step — handles relic pickup and scoring just like player moveHeroStep
+  const aiMoveStep = (heroKey, toKey, curBoard) => {
+    const hero = curBoard[heroKey]?.hero;
+    if(!hero) return curBoard;
+    const nb = {...curBoard};
+    const[tr,tc] = toKey.split("-").map(Number);
+    const destCell = nb[toKey];
+
+    // Track if we just picked up the relic this step (can't use stale closure)
+    let justPickedUp = false;
+
+    // Relic pickup: stepping onto P1's relic
+    if(!hero.tank && destCell?.type==="relic" && destCell.owner===1){
+      setRelicCarrier({heroId:hero.id, owner:1, boardKey:toKey});
+      addLog(`${hero.name} picked up the relic!`);
+      delete nb[toKey];
+      justPickedUp = true;
+    }
+
+    // Move hero to new tile
+    nb[toKey] = {type:"hero", hero};
+    delete nb[heroKey];
+
+    // Relic scoring: AI hero carrying relic into P2 home zone
+    const toZone = getZone(tr);
+    const isCarrying = justPickedUp || relicCarrier?.heroId===hero.id;
+    if(toZone==="home2" && isCarrying){
+      const newScore = p2Score + 1;
+      setP2Score(newScore);
+      setRelicCarrier(null);
+      // Reset P1's relic to their spawn
+      const relicSpawn = "16-8";
+      const findFree=(base)=>{
+        if(!nb[base])return base;
+        const[br,bc]=base.split("-").map(Number);
+        for(let dc=-4;dc<=4;dc++){const k=`${br}-${bc+dc}`;const[,kc]=k.split("-").map(Number);if(kc>=0&&kc<COLS&&!nb[k])return k;}
+        return base;
+      };
+      nb[findFree(relicSpawn)] = {type:"relic", owner:1};
+      addLog(`AI scored! P2: ${newScore}/${RELICS_TO_WIN}`);
+      if(newScore>=RELICS_TO_WIN) setRoundWinner(2);
+    }
+
+    return nb;
+  };
+
   // ── EXECUTE AI TURN ──────────────────────────────────────
   const executeAITurn = (currentBoard, currentP2Bench, currentP2Deck, currentP2Hand, currentHpMap) => {
     const diff = difficulty || 'easy';
@@ -2844,7 +2890,7 @@ function RelicboundGame({gameMode,difficulty}){
           next=aiBestStep(cur,target,cb);
         }
         if(!next){onDone(cb);return;}
-        const nb={...cb};nb[next]=nb[cur];delete nb[cur];
+        const nb=aiMoveStep(cur,next,cb);
         setBoard({...nb});
         aiDelay(()=>doStep(next,rem-1,nb),650);
       };
@@ -2918,7 +2964,7 @@ function RelicboundGame({gameMode,difficulty}){
         if(rem<=0){aiDelay(()=>aiTryAttack(cb,()=>{aiEnd();endTurn(true);}),500);return;}
         const step=aiBestStep(cur,targetKey,cb);
         if(!step||cb[step]){aiDelay(()=>aiTryAttack(cb,()=>{aiEnd();endTurn(true);}),500);return;}
-        const nb={...cb};nb[step]=nb[cur];delete nb[cur];setBoard({...nb});
+        const nb=aiMoveStep(cur,step,cb);setBoard({...nb});
         aiDelay(()=>moveSteps(step,rem-1,nb),650);
       };
       moveSteps(heroKey,hero.moveMax||3,afterBoard);
@@ -3010,7 +3056,7 @@ function RelicboundGame({gameMode,difficulty}){
         if(rem<=0){aiDelay(()=>aiTryAttack(cb,()=>{aiEnd();endTurn(true);}),400);return;}
         const step=aiBestStep(cur,targetKey,cb);
         if(!step||cb[step]){aiDelay(()=>aiTryAttack(cb,()=>{aiEnd();endTurn(true);}),400);return;}
-        const nb={...cb};nb[step]=nb[cur];delete nb[cur];setBoard({...nb});
+        const nb=aiMoveStep(cur,step,cb);setBoard({...nb});
         aiDelay(()=>moveSteps(step,rem-1,nb),550);
       };
       moveSteps(heroKey,hero.moveMax||3,afterBoard);
