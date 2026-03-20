@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Relicbound v6 -->
+<!-- Relicbound v7 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
@@ -4618,8 +4618,8 @@ function RelicboundGame({gameMode,difficulty}){
             var hookDecls='var useState=React.useState,useEffect=React.useEffect,useRef=React.useRef,useCallback=React.useCallback,useMemo=React.useMemo;';
             var src=hookDecls+document.getElementById('app-src').textContent;
             var out=Babel.transform(src,{
-              presets:['react',['env',{targets:{browsers:['last 2 versions']}}]],
-              plugins:['proposal-optional-chaining','proposal-nullish-coalescing-operator']
+              presets:['react'],
+              plugins:['proposal-optional-chaining','proposal-nullish-coalescing-operator','proposal-class-properties']
             }).code;
             setP(85,'Starting...');
             setTimeout(function(){
