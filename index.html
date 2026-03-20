@@ -1305,69 +1305,36 @@ function StartMenu({onStart,onRules,onCodex}){
 
 // ─── LOG WIDGET ──────────────────────────────────────────────
 function LogWidget({log}){
-  const[open,setOpen]=useState(false);
-  const latest=log[0]||"";
+  const[open,setOpen]=useState(true);
   return(
-    <div style={{position:"absolute",bottom:"8px",right:"8px",zIndex:40,fontFamily:"Georgia,serif"}}>
-      {open?(
-        <div style={{
-          width:"220px",
-          background:"linear-gradient(145deg,#0e0c08,#0a0806)",
-          border:"1px solid #2a2010",
-          borderRadius:"8px",
-          boxShadow:"0 4px 20px rgba(0,0,0,0.8),inset 0 1px 0 rgba(200,168,64,0.08)",
-          overflow:"hidden",
-        }}>
-          {/* Header */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",
-            padding:"5px 8px",borderBottom:"1px solid #1a1408",
-            background:"#080604"}}>
-            <span style={{fontSize:"0.38rem",color:"#5a4a20",letterSpacing:"0.14em",textTransform:"uppercase"}}>
-              Battle Log
-            </span>
-            <button onClick={()=>setOpen(false)} style={{
-              background:"none",border:"none",color:"#3a3010",cursor:"pointer",
-              fontSize:"0.55rem",padding:"0 2px",lineHeight:1}}>✕</button>
-          </div>
-          {/* Entries */}
-          <div style={{padding:"6px 8px",maxHeight:"140px",overflowY:"auto",
-            display:"flex",flexDirection:"column",gap:"4px"}}>
-            {log.slice(0,12).map((l,i)=>(
-              <div key={i} style={{
-                fontSize:"0.42rem",
-                color:i===0?"#a09040":"#3a3010",
-                lineHeight:"1.5",
-                paddingBottom:"3px",
-                borderBottom:i<log.length-1?"1px solid #141008":"none",
-              }}>{l}</div>
-            ))}
-          </div>
-        </div>
-      ):(
-        /* Collapsed pill */
-        <button onClick={()=>setOpen(true)} style={{
-          background:"linear-gradient(145deg,#0e0c08,#0a0806)",
-          border:"1px solid #2a2010",
-          borderRadius:"6px",
-          padding:"5px 9px",
-          display:"flex",alignItems:"center",gap:"6px",
-          cursor:"pointer",
-          boxShadow:"0 2px 10px rgba(0,0,0,0.7),inset 0 1px 0 rgba(200,168,64,0.06)",
-          maxWidth:"180px",
-        }}>
-          <div style={{width:"5px",height:"5px",borderRadius:"50%",
-            background:"#c8a840",flexShrink:0,
-            boxShadow:"0 0 4px rgba(200,168,64,0.8)"}}/>
-          <span style={{fontSize:"0.38rem",color:"#5a4a28",letterSpacing:"0.02em",
-            overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",
-            maxWidth:"150px"}}>
-            {latest}
-          </span>
+    <div style={{fontFamily:"Georgia,serif",width:"100%",padding:"8px 14px 6px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:open?"6px":"0"}}>
+        <span style={{fontSize:"0.54rem",color:"#5a4a20",letterSpacing:"0.14em",textTransform:"uppercase"}}>
+          Battle Log
+        </span>
+        <button onClick={()=>setOpen(o=>!o)} style={{
+          background:"none",border:"none",color:"#3a3010",cursor:"pointer",
+          fontSize:"0.62rem",padding:"0 2px",lineHeight:1,fontFamily:"Georgia,serif"}}>
+          {open?"▲":"▼"}
         </button>
+      </div>
+      {open&&(
+        <div style={{display:"flex",flexDirection:"column",gap:"3px",maxHeight:"90px",overflowY:"auto"}}>
+          {log.slice(0,8).map((l,i)=>(
+            <div key={i} style={{
+              fontSize:"0.5rem",
+              color:i===0?"#a09040":"#3a3010",
+              lineHeight:"1.5",
+              paddingBottom:"2px",
+              borderBottom:i<Math.min(log.length,8)-1?"1px solid #141008":"none",
+            }}>{l}</div>
+          ))}
+        </div>
       )}
     </div>
   );
 }
+
 
 
 function useWindowWidth() {
@@ -1445,6 +1412,8 @@ function RelicboundGame({gameMode,difficulty}){
   const[turn,setTurn]=useState(1);
   const[turnNum,setTurnNum]=useState(1);
   const[phase,setPhase]=useState("choose");
+  const[showPassScreen,setShowPassScreen]=useState(false);
+  const[passToPlayer,setPassToPlayer]=useState(null);
   const[log,setLog]=useState(["Game start! Player 1 goes first."]);
   const[hoveredTile,setHoveredTile]=useState(null);
   const[hpMap,setHpMap]=useState({});
@@ -1634,7 +1603,7 @@ function RelicboundGame({gameMode,difficulty}){
   };
 
   // ── END TURN ──────────────────────────────────────────────
-  const endTurn=()=>{
+  const endTurn=(skipPass=false)=>{
     const nextTurn=turn===1?2:1;
     const nextTurnNum=turn===2?turnNum+1:turnNum;
     setTurn(nextTurn);
@@ -1659,6 +1628,8 @@ function RelicboundGame({gameMode,difficulty}){
       return n;
     });
     addLog(`Player ${nextTurn}'s turn.`);
+    if(skipPass){setAiActive(false);setAiStatus('');}
+    if(!isAI&&!skipPass){setPassToPlayer(nextTurn);setShowPassScreen(true);}
   };
 
   // ── SPAWN ──────────────────────────────────────────────────
@@ -2739,7 +2710,7 @@ function RelicboundGame({gameMode,difficulty}){
     // Can draw?
     if(deck.length > 0) actions.push('draw');
 
-    if(!actions.length){ endTurn(); return; }
+    if(!actions.length){ endTurn(true); return; }
 
     const action = actions[Math.floor(Math.random()*actions.length)];
 
@@ -2748,7 +2719,7 @@ function RelicboundGame({gameMode,difficulty}){
       aiDelay(() => {
         const d1 = Math.ceil(Math.random()*6), d2 = Math.ceil(Math.random()*6);
         const tot = d1+d2;
-        if(tot < 3){ aiSay(`AI rolled ${tot} — too low!`);addLog(`AI rolled ${tot} — too low!`); endTurn(); return; }
+        if(tot < 3){ aiSay(`AI rolled ${tot} — too low!`);addLog(`AI rolled ${tot} — too low!`); endTurn(true); return; }
         setSpawnsAvail(tot); setSpawnBonus(0); setSpawnsUsed(0);
         aiSay(`AI rolls ${tot} (${d1}+${d2}) — spawn budget: ${tot}.`);addLog(`AI rolls ${tot} (${d1}+${d2}) — spawn budget: ${tot}.`);
         // Place heroes greedily up to budget
@@ -2777,7 +2748,7 @@ function RelicboundGame({gameMode,difficulty}){
           }
           setBoard(newBoard);
           setP2Bench(newBench);
-          aiDelay(() => {aiEnd();endTurn();}, 800);
+          aiDelay(() => {aiEnd();endTurn(true);}, 800);
         }, 1000);
       }, 1000);
 
@@ -2785,12 +2756,12 @@ function RelicboundGame({gameMode,difficulty}){
       // Pick random hero, move step-by-step
       const heroKey = aiKeys[Math.floor(Math.random()*aiKeys.length)];
       const hero = brd[heroKey]?.hero;
-      if(!hero){ endTurn(); return; }
+      if(!hero){ endTurn(true); return; }
       const steps = Math.ceil(Math.random() * (hero.moveMax||3));
       aiSay(`${hero.name} is moving...`);addLog(`AI moves ${hero.name}.`);
       const doStep = (cur, remaining, curBoard) => {
         if(remaining <= 0){
-          aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn();}),600);
+          aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),600);
           return;
         }
         const[cr,cc]=cur.split("-").map(Number);
@@ -2800,7 +2771,7 @@ function RelicboundGame({gameMode,difficulty}){
             const[r,c]=k.split("-").map(Number);
             return r>=0&&r<ROWS&&c>=0&&c<COLS&&(!curBoard[k]||curBoard[k].type==="relic");
           });
-        if(!neighbors.length){aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn();}),600);return;}
+        if(!neighbors.length){aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),600);return;}
         const next=neighbors[Math.floor(Math.random()*neighbors.length)];
         const nb={...curBoard}; nb[next]=nb[cur]; delete nb[cur];
         setBoard({...nb});
@@ -2816,7 +2787,7 @@ function RelicboundGame({gameMode,difficulty}){
         setP2Hand(h=>[...h,card]);
         aiSay(`AI draws ${card.name}.`);addLog(`AI draws ${card.name}.`);
       }
-      aiDelay(() => endTurn(), 600);
+      aiDelay(() => endTurn(true), 600);
     }
   };
 
@@ -2833,7 +2804,7 @@ function RelicboundGame({gameMode,difficulty}){
         const d1=Math.ceil(Math.random()*6), d2=Math.ceil(Math.random()*6);
         const tot=d1+d2;
         aiSay(`AI rolls ${tot} (${d1}+${d2}).`);addLog(`AI rolls ${tot} (${d1}+${d2}).`);
-        if(tot < 3){ endTurn(); return; }
+        if(tot < 3){ endTurn(true); return; }
         let budget=tot, newBoard={...brd}, newBench=[...bench];
         // Prefer attackers then healers
         const order = ['chance','nojo','jovel','madb','iza','austi','gravon','antoni'];
@@ -2853,7 +2824,7 @@ function RelicboundGame({gameMode,difficulty}){
           }
         }
         setBoard(newBoard); setP2Bench(newBench);
-        aiDelay(()=>endTurn(), 600);
+        aiDelay(()=>endTurn(true), 600);
       }, 700);
       return;
     }
@@ -2877,12 +2848,12 @@ function RelicboundGame({gameMode,difficulty}){
           heroKey=aiKeys[0]; targetKey=target;
           if(target) { aiSay(`${brd[heroKey]?.hero?.name} advances...`);addLog(`AI hero advances.`); }
         }
-        if(!heroKey||!targetKey){ aiDelay(()=>aiTryAttack(brd,()=>{aiEnd();endTurn();}),300); return; }
+        if(!heroKey||!targetKey){ aiDelay(()=>aiTryAttack(brd,()=>{aiEnd();endTurn(true);}),300); return; }
         // Step-by-step movement
         const moveSteps=(cur, stepsLeft, curBoard)=>{
-          if(stepsLeft<=0||!targetKey){ aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn();}),600); return; }
+          if(stepsLeft<=0||!targetKey){ aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),600); return; }
           const step=aiBestStep(cur,targetKey);
-          if(!step||curBoard[step]){ aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn();}),600); return; }
+          if(!step||curBoard[step]){ aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),600); return; }
           const nb={...curBoard}; nb[step]=nb[cur]; delete nb[cur];
           setBoard({...nb});
           aiDelay(()=>moveSteps(step,stepsLeft-1,nb),700);
@@ -2895,7 +2866,7 @@ function RelicboundGame({gameMode,difficulty}){
     }
 
     // Fallback
-    aiDelay(()=>endTurn(), 500);
+    aiDelay(()=>endTurn(true), 500);
   };
 
   // ── HARD AI ──────────────────────────────────────────────
@@ -2930,7 +2901,7 @@ function RelicboundGame({gameMode,difficulty}){
         const d1=Math.ceil(Math.random()*6),d2=Math.ceil(Math.random()*6);
         const tot=d1+d2;
         aiSay(`AI rolls ${tot}.`);addLog(`AI rolls ${tot}.`);
-        if(tot<3){endTurn();return;}
+        if(tot<3){endTurn(true);return;}
         let budget=tot,newBoard={...brd},newBench=[...bench];
         // Hard: spawn most cost-effective hero for situation
         const needsHealer=aiKeys.filter(k=>brd[k]?.hero&&(hpM[brd[k].hero.id]??brd[k].hero.maxHp)<brd[k].hero.maxHp*0.5).length>0;
@@ -2949,7 +2920,7 @@ function RelicboundGame({gameMode,difficulty}){
           }
         }
         setBoard(newBoard);setP2Bench(newBench);
-        aiDelay(()=>endTurn(),600);
+        aiDelay(()=>endTurn(true),600);
       },700);
       return;
     }
@@ -2975,13 +2946,13 @@ function RelicboundGame({gameMode,difficulty}){
         heroKey=closest; targetKey=weakest;
         aiSay(`${brd[heroKey]?.hero?.name} hunts ${brd[weakest]?.hero?.name}!`);addLog(`AI hunts enemy.`);
       }
-      if(!heroKey||!targetKey){aiDelay(()=>{aiEnd();endTurn();},400);return;}
+      if(!heroKey||!targetKey){aiDelay(()=>{aiEnd();endTurn(true);},400);return;}
       const hero2=brd[heroKey]?.hero;
       const maxSteps2=hero2?.moveMax||3;
       const moveSteps2=(cur,stepsLeft,curBoard)=>{
-        if(stepsLeft<=0){aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn();}),600);return;}
+        if(stepsLeft<=0){aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),600);return;}
         const step=aiBestStep(cur,targetKey);
-        if(!step||curBoard[step]){aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn();}),600);return;}
+        if(!step||curBoard[step]){aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),600);return;}
         const nb={...curBoard};nb[step]=nb[cur];delete nb[cur];
         setBoard({...nb});
         aiDelay(()=>moveSteps2(step,stepsLeft-1,nb),700);
@@ -3033,7 +3004,7 @@ function RelicboundGame({gameMode,difficulty}){
       aiSay(`AI rolls ${d1}${d2?"+"+d2:""} — ${dmg} damage${isCrit?" CRIT!":""}.`);addLog(`AI rolls ${d1}${d2?"+"+d2:""} — ${dmg} damage${isCrit?" CRIT!":""}.`);
       aiDelay(()=>{
         applyDamage(chosen.tKey,dmg,chosen.aKey,isCrit,!!profile.splash,chosen.aHero.id);
-        aiDelay(()=>{aiEnd();endTurn();},1200);
+        aiDelay(()=>{aiEnd();endTurn(true);},1200);
       },900);
     },500);
 
@@ -3043,7 +3014,7 @@ function RelicboundGame({gameMode,difficulty}){
   // ── AI TRIGGER ───────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{
-    if(!isAI||turn!==2||phase!=="choose"||roundWinner||matchWinner) return;
+    if(!isAI||turn!==2||phase!=="choose"||roundWinner||matchWinner||showPassScreen) return;
     const timer=setTimeout(()=>{
       aiStart();
       executeAITurn(board, p2Bench, p2Deck, p2Hand, hpMap);
@@ -3124,7 +3095,7 @@ function RelicboundGame({gameMode,difficulty}){
             <div style={{perspective:"1100px",perspectiveOrigin:"50% 85%",flexShrink:0}}>
               <div style={{
                 transform:boardFlipped?"rotateX(32deg) rotateZ(180deg)":"rotateX(32deg)",
-                transformOrigin:"center center",transformStyle:"preserve-3d",
+                transformOrigin:"center center",transformStyle:"flat",
                 transition:"transform 0.4s ease"}}>
                 <div style={{position:"relative",padding:"18px",
                   background:"linear-gradient(145deg,#0e0b06,#070504,#0e0b06)",
@@ -3314,13 +3285,13 @@ function RelicboundGame({gameMode,difficulty}){
 
           {/* Right panel */}
           <div style={{flex:1,display:"flex",flexDirection:"column",
-            overflowY:"auto",background:"#080604",
-            minWidth:"320px",position:"relative",flex:1}}>
+            overflow:"hidden",background:"#080604",
+            minWidth:"320px",position:"relative"}}>
 
             {/* Bench */}
-            <div style={{padding:"12px 14px",borderBottom:"1px solid #1a1408",flexShrink:0}}>
-              <div style={{fontSize:"0.5rem",color:"#5a4a20",letterSpacing:"0.12em",
-                textTransform:"uppercase",marginBottom:"8px"}}>
+            <div style={{padding:"12px 14px",borderBottom:"1px solid #1a1408",flexShrink:0,maxHeight:"220px",overflowY:"auto"}}>
+              <div style={{fontSize:"0.65rem",color:"#5a4a20",letterSpacing:"0.12em",
+                textTransform:"uppercase",marginBottom:"10px"}}>
                 P{turn} Bench — {(turn===1?p1Bench:p2Bench).length} Ready
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"6px"}}>
@@ -3340,8 +3311,8 @@ function RelicboundGame({gameMode,difficulty}){
 
             {/* Action */}
             <div style={{flex:1,padding:"12px 14px",display:"flex",flexDirection:"column",
-              gap:"7px",overflowY:"auto",minHeight:0}}>
-              <div style={{fontSize:"0.5rem",color:"#3a3010",textTransform:"uppercase",
+              gap:"7px",overflowY:"auto",minHeight:"180px"}}>
+              <div style={{fontSize:"0.65rem",color:"#3a3010",textTransform:"uppercase",
                 letterSpacing:"0.14em",textAlign:"center"}}>{
                 phase==="choose"?"Your Action":
                 phase==="rolling"?"Rolling...":
@@ -3373,16 +3344,16 @@ function RelicboundGame({gameMode,difficulty}){
               paddingBottom:"6px",borderBottom:"1px solid #1a1408"}}>
               <div style={{textAlign:"center"}}>
                 <DeckPile count={deck.length}/>
-                <div style={{fontSize:"0.36rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DECK {deck.length}</div>
+                <div style={{fontSize:"0.5rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DECK {deck.length}</div>
               </div>
               <div style={{textAlign:"center"}}>
                 <DiscardPile pile={discard}/>
-                <div style={{fontSize:"0.36rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DISCARD {discard.length}</div>
+                <div style={{fontSize:"0.5rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DISCARD {discard.length}</div>
               </div>
             </div>
 
             {/* Phase label */}
-            <div style={{fontSize:"0.42rem",color:"#3a3010",textTransform:"uppercase",
+            <div style={{fontSize:"0.58rem",color:"#3a3010",textTransform:"uppercase",
               letterSpacing:"0.12em",textAlign:"center"}}>{
               phase==="choose"?"Your Action":
               phase==="rolling"?"Rolling...":
@@ -3446,7 +3417,7 @@ function RelicboundGame({gameMode,difficulty}){
             {/* Card select-hero UI */}
             {cardPhase==="select-hero"&&playingCard&&(
               <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>
-                <div style={{fontSize:"0.44rem",color:"#c8a840",textAlign:"center"}}>
+                <div style={{fontSize:"0.6rem",color:"#c8a840",textAlign:"center"}}>
                   {playingCard.key==="second_wind"?"Select hero +3HP":
                    playingCard.key==="forced_march"?"Select hero +4 move":
                    playingCard.key==="adrenaline_rush"?"Select hero +2 move":"Select hero"}
@@ -3711,20 +3682,25 @@ function RelicboundGame({gameMode,difficulty}){
 
             </div>
 
+            {/* Log */}
+            <div style={{borderTop:"1px solid #1a1408",flexShrink:0,background:"#080604"}}>
+              <LogWidget log={log}/>
+            </div>
+
             {/* Hand */}
             <div style={{borderTop:"1px solid #1a1408",padding:"12px 14px",
               flexShrink:0,background:"#080604"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"7px"}}>
-                <div style={{fontSize:"0.48rem",color:"#3a2e0c",letterSpacing:"0.12em",textTransform:"uppercase"}}>
+                <div style={{fontSize:"0.65rem",color:"#3a2e0c",letterSpacing:"0.12em",textTransform:"uppercase"}}>
                   Hand — {hand.length} card{hand.length!==1?"s":""}
                 </div>
                 {hand.length>0&&(
                 <button onClick={()=>setHandRevealed(r=>!r)} style={{
                   background:handRevealed?"#1a2a0a":"#1a1408",
                   border:`1px solid ${handRevealed?"#4a8a2a":"#3a2a10"}`,
-                  borderRadius:"4px",padding:"3px 8px",
+                  borderRadius:"4px",padding:"6px 14px",
                   color:handRevealed?"#7acc4a":"#6a5a28",
-                  fontSize:"0.42rem",letterSpacing:"0.1em",textTransform:"uppercase",
+                  fontSize:"0.58rem",letterSpacing:"0.1em",textTransform:"uppercase",
                   cursor:"pointer",fontFamily:"Georgia,serif"}}>
                   {handRevealed?"Hide":"Reveal"}
                 </button>
@@ -3739,10 +3715,10 @@ function RelicboundGame({gameMode,difficulty}){
                 :!handRevealed
                 ?<div style={{display:"flex",gap:"4px",alignItems:"center",alignSelf:"center"}}>
                   {hand.map((_,i)=>(
-                    <div key={i} style={{width:"44px",height:"62px",borderRadius:"5px",
+                    <div key={i} style={{width:"58px",height:"80px",borderRadius:"5px",
                       background:"linear-gradient(145deg,#0e0c08,#1a1812,#0e0c08)",
                       border:"1px solid #3a3020",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                      <img src={EMBLEM} style={{width:"22px",height:"22px",opacity:0.35}} alt=""/>
+                      <img src={EMBLEM} style={{width:"28px",height:"28px",opacity:0.35}} alt=""/>
                     </div>
                   ))}
                   <div style={{fontSize:"0.44rem",color:"#3a3010",marginLeft:"6px",letterSpacing:"0.06em",alignSelf:"center"}}>
@@ -3766,7 +3742,6 @@ function RelicboundGame({gameMode,difficulty}){
               </div>
             </div>
 
-            <LogWidget log={log}/>
           </div>
         </div>
 
@@ -3781,7 +3756,7 @@ function RelicboundGame({gameMode,difficulty}){
             <div style={{perspective:"1100px",perspectiveOrigin:"50% 85%",flexShrink:0}}>
               <div style={{
                 transform:boardFlipped?"rotateX(38deg) rotateZ(180deg)":"rotateX(38deg)",
-                transformOrigin:"center center",transformStyle:"preserve-3d",
+                transformOrigin:"center center",transformStyle:"flat",
                 transition:"transform 0.4s ease"}}>
                 <div style={{position:"relative",padding:"18px",
                   background:"linear-gradient(145deg,#0e0b06,#070504,#0e0b06)",
@@ -4020,11 +3995,11 @@ function RelicboundGame({gameMode,difficulty}){
               paddingBottom:"6px",borderBottom:"1px solid #1a1408"}}>
               <div style={{textAlign:"center"}}>
                 <DeckPile count={deck.length}/>
-                <div style={{fontSize:"0.36rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DECK {deck.length}</div>
+                <div style={{fontSize:"0.5rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DECK {deck.length}</div>
               </div>
               <div style={{textAlign:"center"}}>
                 <DiscardPile pile={discard}/>
-                <div style={{fontSize:"0.36rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DISCARD {discard.length}</div>
+                <div style={{fontSize:"0.5rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DISCARD {discard.length}</div>
               </div>
             </div>
 
@@ -4502,6 +4477,60 @@ function RelicboundGame({gameMode,difficulty}){
             setPendingSpawnHero(null);
           }}
         />
+      )}
+
+
+      {/* Pass Phone Screen */}
+      {showPassScreen&&(
+        <div style={{position:"fixed",inset:0,background:"#050402",zIndex:200,
+          display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+          fontFamily:"Georgia,serif"}}>
+          <div style={{textAlign:"center",padding:"40px 32px",
+            background:"linear-gradient(160deg,#0e0c08,#080604)",
+            border:"1px solid #1a1408",borderRadius:"12px",
+            maxWidth:"340px",width:"90%",
+            boxShadow:"0 0 80px rgba(0,0,0,0.98)"}}>
+            <div style={{fontSize:"1.4rem",color:"#2a2010",marginBottom:"16px",letterSpacing:"0.2em"}}>
+              ✦ ✦ ✦
+            </div>
+            <div style={{fontSize:"0.44rem",color:"#5a4a20",letterSpacing:"0.2em",
+              textTransform:"uppercase",marginBottom:"8px"}}>
+              Turn Complete
+            </div>
+            <div style={{fontSize:"0.9rem",color:"#c8a840",letterSpacing:"0.12em",
+              textTransform:"uppercase",marginBottom:"6px",fontWeight:"bold"}}>
+              Pass to Player {passToPlayer}
+            </div>
+            <div style={{width:"48px",height:"2px",
+              background:"linear-gradient(90deg,transparent,#5a4a20,transparent)",
+              margin:"14px auto"}}/>
+            <div style={{fontSize:"0.48rem",color:"#3a3010",letterSpacing:"0.08em",
+              marginBottom:"28px",lineHeight:"1.6"}}>
+              Hand the device to Player {passToPlayer}.<br/>
+              When ready, tap to begin your turn.
+            </div>
+            <button
+              onClick={()=>setShowPassScreen(false)}
+              style={{
+                background:"linear-gradient(160deg,#1a1408,#0e0c06)",
+                border:"1px solid #5a4a20",
+                borderRadius:"6px",
+                padding:"12px 32px",
+                color:"#c8a840",
+                fontSize:"0.55rem",
+                letterSpacing:"0.14em",
+                textTransform:"uppercase",
+                cursor:"pointer",
+                fontFamily:"Georgia,serif",
+                width:"100%"
+              }}
+              onMouseEnter={e=>{e.target.style.background="linear-gradient(160deg,#2a2010,#1a1408)";e.target.style.borderColor="#c8a840";}}
+              onMouseLeave={e=>{e.target.style.background="linear-gradient(160deg,#1a1408,#0e0c06)";e.target.style.borderColor="#5a4a20";}}
+            >
+              Begin Turn →
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Round winner */}
