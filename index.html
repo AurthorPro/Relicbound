@@ -16,6 +16,9 @@
     .lbw{width:200px;height:3px;background:#1a1408;border-radius:2px;overflow:hidden;}
     .lb{height:100%;width:0%;background:linear-gradient(90deg,#c8a840,#e8d080);transition:width .4s;border-radius:2px;}
     .ls{font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:#3a3010;}
+    .err{color:#ff6a6a;font-family:monospace;font-size:11px;max-width:85vw;
+      text-align:left;margin-top:12px;word-break:break-all;background:#1a0808;
+      padding:10px;border-radius:4px;white-space:pre-wrap;}
   </style>
 </head>
 <body>
@@ -1376,7 +1379,6 @@ function useWindowWidth() {
   return width;
 }
 
-function RelicboundGame({gameMode,difficulty}
 
 function RelicboundApp(){
   const[screen,setScreen]=useState("menu"); // menu | rules | deck | game
@@ -1423,7 +1425,9 @@ function RelicboundApp(){
       <StartMenu onStart={handleStart} onRules={()=>setScreen("rules")} onCodex={()=>setScreen("codex")}/>
     </div>
   );
-}){
+}
+
+function RelicboundGame({gameMode,difficulty}){
 
   // ── STATE ──────────────────────────────────────────────
   const[p1Score,setP1Score]=useState(0);
@@ -4578,10 +4582,20 @@ function RelicboundApp(){
   );
 }
 
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(RelicboundApp, null));
   </script>
   <script>
     var bar=document.getElementById('lbar'),status=document.getElementById('lstatus');
     function setP(p,m){bar.style.width=p+'%';status.textContent=m;}
+    function showErr(e){
+      bar.style.background='#cc3a3a';
+      var d=document.createElement('div');
+      d.className='err';
+      d.textContent=(e.stack||e.message||String(e));
+      document.getElementById('loading').appendChild(d);
+      console.error(e);
+    }
     window.addEventListener('load',function(){
       setP(20,'Compiling...');
       setTimeout(function(){
@@ -4598,19 +4612,9 @@ function RelicboundApp(){
               try{
                 new Function('React','ReactDOM',out)(React,ReactDOM);
                 document.getElementById('loading').style.display='none';
-              }catch(e){
-                status.textContent='Runtime: '+e.message;
-                bar.style.background='#cc3a3a';
-                document.getElementById('loading').innerHTML += '<div style="color:#cc6a6a;font-family:monospace;font-size:11px;max-width:80vw;text-align:center;margin-top:12px;word-break:break-all">'+e.message+'</div>';
-                console.error('Runtime error:',e);
-              }
+              }catch(e){status.textContent='Runtime error';showErr(e);}
             },50);
-          }catch(e){
-            status.textContent='Compile: '+e.message.slice(0,60);
-            bar.style.background='#cc3a3a';
-            document.getElementById('loading').innerHTML += '<div style="color:#cc6a6a;font-family:monospace;font-size:11px;max-width:80vw;text-align:center;margin-top:12px;word-break:break-all">'+e.message+'</div>';
-            console.error('Compile error:',e);
-          }
+          }catch(e){status.textContent='Compile error';showErr(e);}
         },200);
       },100);
     });
