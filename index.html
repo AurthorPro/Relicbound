@@ -4600,9 +4600,19 @@ export default function RelicboundApp(){
               try{
                 new Function('React','ReactDOM',out)(React,ReactDOM);
                 document.getElementById('loading').style.display='none';
-              }catch(e){status.textContent='Runtime error: '+e.message;bar.style.background='#cc3a3a';console.error(e);}
+              }catch(e){
+                status.textContent='Runtime: '+e.message;
+                bar.style.background='#cc3a3a';
+                document.getElementById('loading').innerHTML += '<div style="color:#cc6a6a;font-family:monospace;font-size:11px;max-width:80vw;text-align:center;margin-top:12px;word-break:break-all">'+e.message+'</div>';
+                console.error('Runtime error:',e);
+              }
             },50);
-          }catch(e){status.textContent='Compile error: '+e.message;bar.style.background='#cc3a3a';console.error(e);}
+          }catch(e){
+            status.textContent='Compile: '+e.message.slice(0,60);
+            bar.style.background='#cc3a3a';
+            document.getElementById('loading').innerHTML += '<div style="color:#cc6a6a;font-family:monospace;font-size:11px;max-width:80vw;text-align:center;margin-top:12px;word-break:break-all">'+e.message+'</div>';
+            console.error('Compile error:',e);
+          }
         },200);
       },100);
     });
