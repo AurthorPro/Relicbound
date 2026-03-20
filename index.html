@@ -12,85 +12,27 @@
       position: fixed; inset: 0; background: #050302;
       display: flex; align-items: center; justify-content: center;
       flex-direction: column; gap: 16px; z-index: 9999;
+      font-family: Georgia, serif;
     }
-    #loading-title {
-      font-family: Georgia, serif; font-size: 2rem; letter-spacing: 0.2em;
-      text-transform: uppercase;
+    .lt { font-size: 2rem; letter-spacing: 0.2em; text-transform: uppercase;
       background: linear-gradient(180deg,#e8d080,#c8a840);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-    }
-    #loading-bar-wrap {
-      width: 200px; height: 3px; background: #1a1408; border-radius: 2px; overflow: hidden;
-    }
-    #loading-bar {
-      height: 100%; width: 0%; background: #c8a840;
-      transition: width 0.3s ease; border-radius: 2px;
-    }
-    #loading-status {
-      font-family: Georgia, serif; font-size: 0.5rem;
-      letter-spacing: 0.2em; text-transform: uppercase; color: #3a3010;
-    }
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .lbw { width: 200px; height: 3px; background: #1a1408; border-radius: 2px; overflow: hidden; }
+    .lb { height: 100%; width: 0%; background: linear-gradient(90deg,#c8a840,#e8d080); transition: width 0.4s; border-radius: 2px; }
+    .ls { font-size: 0.5rem; letter-spacing: 0.2em; text-transform: uppercase; color: #3a3010; }
   </style>
 </head>
 <body>
   <div id="loading">
-    <div id="loading-title">Relicbound</div>
-    <div id="loading-bar-wrap"><div id="loading-bar"></div></div>
-    <div id="loading-status">Loading...</div>
+    <div class="lt">Relicbound</div>
+    <div class="lbw"><div class="lb" id="lbar"></div></div>
+    <div class="ls" id="lstatus">Loading...</div>
   </div>
   <div id="root"></div>
-
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-
-  <script>
-    function setProgress(pct, msg) {
-      document.getElementById('loading-bar').style.width = pct + '%';
-      document.getElementById('loading-status').textContent = msg;
-    }
-    function hideLoading() {
-      document.getElementById('loading').style.display = 'none';
-    }
-    function compileAndRun(code) {
-      try {
-        const transformed = Babel.transform(code, {
-          presets: ['react', ['env', { targets: { browsers: ['last 2 versions'] } }]]
-        }).code;
-        const fn = new Function('React','ReactDOM', transformed);
-        fn(React, ReactDOM);
-      } catch(e) {
-        document.getElementById('loading-status').textContent = 'Error: ' + e.message;
-        console.error(e);
-      }
-    }
-
-    setProgress(10, 'Preparing...');
-
-    // Use setTimeout to allow UI to update between heavy compile steps
-    setTimeout(() => {
-      setProgress(30, 'Compiling components...');
-      const { useState, useEffect } = React;
-
-      // Inject React hooks into global scope for Babel output
-      window.__react_useState = useState;
-      window.__react_useEffect = useEffect;
-
-      setTimeout(() => {
-        setProgress(60, 'Building game engine...');
-        setTimeout(() => {
-          setProgress(85, 'Starting...');
-          setTimeout(() => {
-            setProgress(100, 'Ready!');
-            setTimeout(() => { hideLoading(); }, 200);
-          }, 100);
-        }, 100);
-      }, 100);
-    }, 100);
-  </script>
-
-  <script type="text/babel" data-presets="react,env">
-    const { useState, useEffect } = React;
+  <script id="app-src" type="text/plain">
 
 const EMBLEM = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAA8ADwDASIAAhEBAxEB/8QAGwABAAIDAQEAAAAAAAAAAAAAAAUGAgMEBwH/xAAuEAACAQMDAwIFAwUAAAAAAAABAgMABBEFEiETIjFBYQYUIzJRFULBFkNxgZH/xAAWAQEBAQAAAAAAAAAAAAAAAAAAAQL/xAAXEQEBAQEAAAAAAAAAAAAAAAAAAREx/9oADAMBAAIRAxEAPwDzClKUClTln8MXt0YtnfuOJUiXc0Pnhi21A3jt3ZGRkecTX9H2iQwqwmab+71byOI+pOERZMDGOS3oeKCk0q4X/wAEyn6mlpdNHlQd3TlVfG4ho23sPJGIwcY4zVc1PTJ9NlCSskiNwJIySu7ALKcgEMuQCpAI/Hig4qUpQKt+maXa2GmG41CFHc5Hax3OWA+n54C+DwGyWU8A7qxYSxQ6hbSzruijlVnGwPlQQT2ng8eh4NW9yBp8THdcpbysG6oKFgx3LIec9wIbknzVk2peJC1jedoo9ReVYQg2wwgiKMEdgcKOMgHGPQeBXV85baTcKJrOEgEkdFNqvFtwWDHOR3cH28etaxd9SbopFInzILrLCM7+AD7qRjH445xS3nOl2/ypErEb2LQoWBJP29xxn/Hb+QfNaR29K3a2M725jmJ+gLWJo5257TjOAD6E+TnzWme3S6kiGrNFcC5i6VveYyNp5CSDjcMj2IIJG1gDXxR8rJd6mOr0pSCYo1Y7Txw4Yn/p7ffwK16hdNPFb2yWsaSSuZBGGO6Ms2c8Y5PnHuPzTpxRfiLTf03U5FSMRRO7FIw27pYPKE+TjjBPJUq2BnFRVWn4uuo5usDM8kklwrRgxAKVRNjSBs/uYbTgYPS5OQKq1YrRXfp2py6e5aNVYEbWQjtkXPhv4Pn+OClBcba9tmRRFdiAOCTb3XCPyQcMOCMgj/VS8GoyWxPWt1dN6yoUlEoLAYI9geK84DEKVBOCckelbJLiR5GfKoWUKemoQEAAeFwPTn8+TV1MXqa8kQB7q5trOQ5JkacvICeWwB459qh9T1oWxaK0EwaZQXuJFCSMCAe0ftDAg598iq6Z5MRAFVMP2MihW85ySBknPqa1U0xk7b3LbVXPoo4FY0pUUpSlApSlApSlApSlB//Z";
 
@@ -1744,52 +1686,6 @@ function StartMenu({onStart,onRules,onCodex}){
   );
 }
 
-export default function RelicboundApp(){
-  const[screen,setScreen]=useState("menu"); // menu | rules | deck | game
-  const[gameMode,setGameMode]=useState(null);
-  const[difficulty,setDifficulty]=useState(null);
-
-  const handleStart=(mode,diff)=>{
-    setGameMode(mode);
-    setDifficulty(diff);
-    setScreen("game");
-  };
-
-  if(screen==="rules") return <RulesPage onBack={()=>setScreen("menu")}/>
-  if(screen==="codex") return <CodexPage onBack={()=>setScreen("menu")}/>;
-  if(screen==="game") return(
-    <div>
-      <div style={{position:"fixed",top:0,left:0,right:0,height:"36px",
-        background:"#080604",borderBottom:"1px solid #1a1408",
-        display:"flex",alignItems:"center",justifyContent:"space-between",
-        padding:"0 12px",zIndex:50}}>
-        <button onClick={()=>setScreen("menu")} style={{
-          background:"none",border:"1px solid #2a2010",borderRadius:"3px",
-          padding:"4px 10px",color:"#5a4a28",cursor:"pointer",
-          fontSize:"0.45rem",letterSpacing:"0.08em",fontFamily:"Georgia,serif"}}>
-          Menu
-        </button>
-        <div style={{fontSize:"0.55rem",color:"#3a3020",letterSpacing:"0.2em",textTransform:"uppercase"}}>
-          Relicbound
-        </div>
-        <button onClick={()=>setScreen("rules")} style={{
-          background:"none",border:"1px solid #2a2010",borderRadius:"3px",
-          padding:"4px 10px",color:"#5a4a28",cursor:"pointer",
-          fontSize:"0.45rem",letterSpacing:"0.08em",fontFamily:"Georgia,serif"}}>
-          Rules
-        </button>
-      </div>
-      <div style={{paddingTop:"36px"}}>
-        <RelicboundGame gameMode={gameMode} difficulty={difficulty}/>
-      </div>
-    </div>
-  );
-  return(
-    <div>
-      <StartMenu onStart={handleStart} onRules={()=>setScreen("rules")} onCodex={()=>setScreen("codex")}/>
-    </div>
-  );
-}
 
 // ─── LOG WIDGET ──────────────────────────────────────────────
 function LogWidget({log}){
@@ -1868,12 +1764,54 @@ function useWindowWidth() {
   return width;
 }
 
-  </script>
+function RelicboundGame({gameMode,difficulty}
 
-  <script type="text/babel" data-presets="react,env">
-    const { useState, useEffect } = React;
+export default function RelicboundApp(){
+  const[screen,setScreen]=useState("menu"); // menu | rules | deck | game
+  const[gameMode,setGameMode]=useState(null);
+  const[difficulty,setDifficulty]=useState(null);
 
-function RelicboundGame({gameMode,difficulty}){
+  const handleStart=(mode,diff)=>{
+    setGameMode(mode);
+    setDifficulty(diff);
+    setScreen("game");
+  };
+
+  if(screen==="rules") return <RulesPage onBack={()=>setScreen("menu")}/>
+  if(screen==="codex") return <CodexPage onBack={()=>setScreen("menu")}/>;
+  if(screen==="game") return(
+    <div>
+      <div style={{position:"fixed",top:0,left:0,right:0,height:"36px",
+        background:"#080604",borderBottom:"1px solid #1a1408",
+        display:"flex",alignItems:"center",justifyContent:"space-between",
+        padding:"0 12px",zIndex:50}}>
+        <button onClick={()=>setScreen("menu")} style={{
+          background:"none",border:"1px solid #2a2010",borderRadius:"3px",
+          padding:"4px 10px",color:"#5a4a28",cursor:"pointer",
+          fontSize:"0.45rem",letterSpacing:"0.08em",fontFamily:"Georgia,serif"}}>
+          Menu
+        </button>
+        <div style={{fontSize:"0.55rem",color:"#3a3020",letterSpacing:"0.2em",textTransform:"uppercase"}}>
+          Relicbound
+        </div>
+        <button onClick={()=>setScreen("rules")} style={{
+          background:"none",border:"1px solid #2a2010",borderRadius:"3px",
+          padding:"4px 10px",color:"#5a4a28",cursor:"pointer",
+          fontSize:"0.45rem",letterSpacing:"0.08em",fontFamily:"Georgia,serif"}}>
+          Rules
+        </button>
+      </div>
+      <div style={{paddingTop:"36px"}}>
+        <RelicboundGame gameMode={gameMode} difficulty={difficulty}/>
+      </div>
+    </div>
+  );
+  return(
+    <div>
+      <StartMenu onStart={handleStart} onRules={()=>setScreen("rules")} onCodex={()=>setScreen("codex")}/>
+    </div>
+  );
+}){
 
   // ── STATE ──────────────────────────────────────────────
   const[p1Score,setP1Score]=useState(0);
@@ -5071,7 +5009,43 @@ function RelicboundGame({gameMode,difficulty}){
 }
 
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<RelicboundApp/>);
+    root.render(React.createElement(RelicboundApp, null));
+  </script>
+  <script>
+    var bar = document.getElementById('lbar');
+    var status = document.getElementById('lstatus');
+    function setP(p,m){bar.style.width=p+'%';status.textContent=m;}
+    window.addEventListener('load', function(){
+      setP(20,'Compiling...');
+      setTimeout(function(){
+        setP(55,'Building game...');
+        setTimeout(function(){
+          try {
+            var src = document.getElementById('app-src').textContent;
+            var out = Babel.transform(src, {
+              presets:['react',['env',{targets:{browsers:['last 2 versions']}}]],
+              plugins:['proposal-optional-chaining','proposal-nullish-coalescing-operator']
+            }).code;
+            setP(85,'Starting...');
+            setTimeout(function(){
+              try {
+                var fn = new Function('React','ReactDOM',out);
+                fn(React,ReactDOM);
+                document.getElementById('loading').style.display='none';
+              } catch(e){
+                status.textContent='Runtime error: '+e.message;
+                bar.style.background='#cc3a3a';
+                console.error(e);
+              }
+            },50);
+          } catch(e){
+            status.textContent='Compile error: '+e.message;
+            bar.style.background='#cc3a3a';
+            console.error(e);
+          }
+        },200);
+      },100);
+    });
   </script>
 </body>
 </html>
