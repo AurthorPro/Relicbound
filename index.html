@@ -2678,6 +2678,35 @@ function RelicboundGame({gameMode,difficulty}){
     return Math.abs(r1-r2)+Math.abs(c1-c2);
   };
 
+  // Hero role priority for objective play: higher = better for relic running/combat
+  // Healers score low so they stay back unless nothing else available
+  const aiHeroScore = (heroKey, brd) => {
+    const hero = brd[heroKey]?.hero;
+    if(!hero) return 0;
+    const bid = hero.id.replace(/^p[12]_/,'');
+    if(['chance','nojo'].includes(bid)) return 5;      // Vanguards — fastest, best attackers
+    if(['jovel','madb'].includes(bid)) return 4;       // Rangers — good damage
+    if(['gravon','antoni'].includes(bid)) return 3;    // Tanks — durable objective runners
+    if(['iza','austi'].includes(bid)) return 1;        // Healers — last resort for relic
+    return 2;
+  };
+
+  // Pick the best non-healer hero closest to a target, fallback to any hero
+  const aiBestHeroFor = (aiKeys, targetKey, brd) => {
+    if(!aiKeys.length) return null;
+    const nonHealers = aiKeys.filter(k=>{
+      const bid=(brd[k]?.hero?.id||'').replace(/^p[12]_/,'');
+      return !['iza','austi'].includes(bid);
+    });
+    const pool = nonHealers.length ? nonHealers : aiKeys;
+    // Score by role priority first, then distance as tiebreaker
+    return pool.reduce((best, k) => {
+      const bScore = aiHeroScore(best, brd) * 100 - aiDist(best, targetKey);
+      const kScore = aiHeroScore(k, brd) * 100 - aiDist(k, targetKey);
+      return kScore > bScore ? k : best;
+    });
+  };
+
   // Helper: get relic position
   const getRelicKey = (owner) => Object.keys(board).find(k => board[k]?.type==="relic"&&board[k]?.owner===owner);
 
@@ -2699,8 +2728,28 @@ function RelicboundGame({gameMode,difficulty}){
       });
   };
 
-  // Helper: best single step toward target using a given board snapshot
+  // BFS pathfinder — returns the first step on the shortest path from fromKey to toKey
   const aiBestStep = (fromKey, toKey, brd) => {
+    if(!fromKey||!toKey) return null;
+    // BFS
+    const queue = [[fromKey, []]];
+    const visited = new Set([fromKey]);
+    while(queue.length){
+      const [cur, path] = queue.shift();
+      const neighbors = aiGetNeighbors(cur, brd);
+      for(const nb of neighbors){
+        if(visited.has(nb)) continue;
+        const newPath = [...path, nb];
+        if(nb === toKey) return newPath[0] || null;
+        // Allow passing through the target tile even if occupied (relic/enemy)
+        // but don't traverse through allied or enemy heroes mid-path
+        const cell = brd[nb];
+        if(cell && cell.type==="hero") continue; // blocked, can't pass through
+        visited.add(nb);
+        queue.push([nb, newPath]);
+      }
+    }
+    // No path found — fall back to greedy best neighbor
     const neighbors = aiGetNeighbors(fromKey, brd);
     if(!neighbors.length) return null;
     return neighbors.reduce((best,k) => aiDist(k,toKey) < aiDist(best,toKey) ? k : best, neighbors[0]);
@@ -2773,313 +2822,305 @@ function RelicboundGame({gameMode,difficulty}){
   };
 
   // ── EASY AI ──────────────────────────────────────────────
+  // Easy: knows the objective but plays sloppily — 40% random action, moves wrong hero sometimes
   const aiEasy = (brd, bench, deck, hand) => {
     const aiKeys = Object.entries(brd).filter(([,v])=>v.type==="hero"&&v.hero?.id?.startsWith("p2_")).map(([k])=>k);
-    const p1Keys = Object.entries(brd).filter(([,v])=>v.type==="hero"&&v.hero?.id?.startsWith("p1_")).map(([k])=>k);
+    const p1RelicKey = getRelicKey(1);
+    const p2HomeKey = "0-8";
+    const carrierKey = relicCarrier?.owner===1 ? aiKeys.find(k=>brd[k]?.hero?.id===relicCarrier?.heroId) : null;
 
-    // Helper: Manhattan distance between two board keys
-    const dist=(a,b)=>{
-      const[ar,ac]=a.split("-").map(Number);
-      const[br,bc]=b.split("-").map(Number);
-      return Math.abs(ar-br)+Math.abs(ac-bc);
-    };
-
-    // Helper: step one tile toward a target key, avoiding occupied tiles
-    const stepToward=(cur,target,curBoard)=>{
-      const[cr,cc]=cur.split("-").map(Number);
-      const[tr,tc]=target.split("-").map(Number);
-      const candidates=[[-1,0],[1,0],[0,-1],[0,1]]
-        .map(([dr,dc])=>`${cr+dr}-${cc+dc}`)
-        .filter(k=>{
-          const[r,c]=k.split("-").map(Number);
-          if(r<0||r>=ROWS||c<0||c>=COLS)return false;
-          // Block right-side of a tank at (r, c-1)
-          if(!curBoard[k]&&c>0){const lc=curBoard[`${r}-${c-1}`];if(lc?.type==="hero"&&lc.hero?.tank)return false;}
-          return !curBoard[k]||curBoard[k].type==="relic";
-        });
-      if(!candidates.length)return null;
-      // Prefer tiles that get closer to target; add slight randomness for easy difficulty
-      candidates.sort((a,b)=>dist(a,target)-dist(b,target));
-      // Easy: 70% chance take best step, 30% random
-      return Math.random()<0.7?candidates[0]:candidates[Math.floor(Math.random()*candidates.length)];
-    };
-
-    // Helper: move a hero step by step toward a target
-    const moveHeroToward=(heroKey,target,steps,curBoard,onDone)=>{
+    // BFS move helper
+    const moveToward=(heroKey,target,steps,curBoard,onDone)=>{
       const doStep=(cur,rem,cb)=>{
         if(rem<=0||!target){onDone(cb);return;}
-        const next=stepToward(cur,target,cb);
+        // Easy: 35% chance take a random step instead
+        let next;
+        if(Math.random()<0.35){
+          const[cr,cc]=cur.split("-").map(Number);
+          const rnd=[[-1,0],[1,0],[0,-1],[0,1]].map(([dr,dc])=>`${cr+dr}-${cc+dc}`)
+            .filter(k=>{const[r,c]=k.split("-").map(Number);return r>=0&&r<ROWS&&c>=0&&c<COLS&&(!cb[k]||cb[k].type==="relic");});
+          next=rnd.length?rnd[Math.floor(Math.random()*rnd.length)]:aiBestStep(cur,target,cb);
+        } else {
+          next=aiBestStep(cur,target,cb);
+        }
         if(!next){onDone(cb);return;}
         const nb={...cb};nb[next]=nb[cur];delete nb[cur];
         setBoard({...nb});
-        aiDelay(()=>doStep(next,rem-1,nb),600);
+        aiDelay(()=>doStep(next,rem-1,nb),650);
       };
       doStep(heroKey,steps,curBoard);
     };
 
-    // Decide action based on game state
-    const needsHeroes = aiKeys.length < 2 && bench.length > 0;
-    const hasHeroes = aiKeys.length > 0;
-    const p1RelicKey = getRelicKey(1);
-    const p2HomeKey = "0-8"; // P2 scores by returning P1's relic to row 0
-
-    // Check if AI is carrying P1's relic
-    const carrierKey = relicCarrier?.owner===1 ? aiKeys.find(k=>brd[k]?.hero?.id===relicCarrier?.heroId) : null;
-
-    // Priority 1: Spawn if fewer than 2 heroes on board
-    if(needsHeroes) {
-      aiDelay(() => {
-        const d1=Math.ceil(Math.random()*6), d2=Math.ceil(Math.random()*6);
-        const tot=d1+d2;
-        if(tot<3){ aiSay(`AI rolled ${tot} — too low!`);addLog(`AI rolled ${tot} — too low!`);endTurn(true);return; }
+    // Spawn if fewer than 2 heroes
+    if(aiKeys.length<2&&bench.length>0){
+      aiDelay(()=>{
+        const d1=Math.ceil(Math.random()*6),d2=Math.ceil(Math.random()*6),tot=d1+d2;
+        if(tot<3){addLog(`AI rolled ${tot} — too low!`);endTurn(true);return;}
         setSpawnsAvail(tot);setSpawnBonus(0);setSpawnsUsed(0);
-        aiSay(`AI rolls ${tot} (${d1}+${d2}) — spawn budget: ${tot}.`);addLog(`AI rolls ${tot} (${d1}+${d2}) — spawn budget: ${tot}.`);
+        addLog(`AI rolls ${tot} (${d1}+${d2}).`);
         aiDelay(()=>{
-          let budget=tot, newBoard={...brd}, newBench=[...bench];
-          const homeRow=0;
+          let budget=tot,nb={...brd},newBench=[...bench];
           while(newBench.length&&budget>=3){
-            const affordable=newBench.filter(h=>(h.spawnCost||3)<=budget);
-            if(!affordable.length)break;
-            // Easy: pick cheapest available hero first
-            affordable.sort((a,b)=>(a.spawnCost||3)-(b.spawnCost||3));
-            const hero=affordable[0];
-            let col=Math.floor(Math.random()*COLS), attempts=0;
-            while(newBoard[`${homeRow}-${col}`]&&attempts<COLS){col=(col+1)%COLS;attempts++;}
-            if(!newBoard[`${homeRow}-${col}`]){
-              newBoard[`${homeRow}-${col}`]={type:"hero",hero};
-              budget-=(hero.spawnCost||3);
-              newBench=newBench.filter(h=>h.id!==hero.id);
-              aiSay(`AI spawns ${hero.name}.`);addLog(`AI spawns ${hero.name}.`);
-            } else break;
+            const pool=newBench.filter(h=>(h.spawnCost||3)<=budget);
+            if(!pool.length)break;
+            pool.sort((a,b)=>(a.spawnCost||3)-(b.spawnCost||3));
+            const h=pool[0];
+            let col=Math.floor(Math.random()*COLS),att=0;
+            while(nb[`0-${col}`]&&att<COLS){col=(col+1)%COLS;att++;}
+            if(!nb[`0-${col}`]){nb[`0-${col}`]={type:"hero",hero:h};budget-=(h.spawnCost||3);newBench=newBench.filter(x=>x.id!==h.id);addLog(`AI spawns ${h.name}.`);}
+            else break;
           }
-          setBoard(newBoard);setP2Bench(newBench);
+          setBoard(nb);setP2Bench(newBench);
           aiDelay(()=>{aiEnd();endTurn(true);},600);
         },1000);
       },800);
       return;
     }
+    if(!aiKeys.length){endTurn(true);return;}
 
-    if(!hasHeroes){ endTurn(true); return; }
-
-    // Priority 2: Move carrier home if carrying relic
+    // Carrier: run home
     if(carrierKey){
-      aiSay(`${brd[carrierKey]?.hero?.name} carrying relic home!`);addLog(`AI carrier heads home.`);
+      aiSay(`${brd[carrierKey]?.hero?.name} heading home!`);addLog(`AI carrier moves.`);
       const steps=brd[carrierKey]?.hero?.moveMax||3;
-      moveHeroToward(carrierKey,p2HomeKey,Math.ceil(steps/2),brd,(finalBoard)=>{
-        aiDelay(()=>aiTryAttack(finalBoard,()=>{aiEnd();endTurn(true);}),400);
-      });
+      moveToward(carrierKey,p2HomeKey,steps,brd,(fb)=>{aiDelay(()=>aiTryAttack(fb,()=>{aiEnd();endTurn(true);}),400);});
       return;
     }
 
-    // Priority 3: Move a hero toward P1's relic (objective play)
-    if(p1RelicKey&&hasHeroes){
-      // Pick hero closest to P1's relic
-      const hero=aiKeys.slice().sort((a,b)=>dist(a,p1RelicKey)-dist(b,p1RelicKey))[0];
-      const heroData=brd[hero]?.hero;
-      const steps=heroData?.moveMax||3;
-      aiSay(`${heroData?.name||"Hero"} advancing on relic...`);addLog(`AI advances on relic.`);
-      moveHeroToward(hero,p1RelicKey,Math.ceil(steps/2),brd,(finalBoard)=>{
-        aiDelay(()=>aiTryAttack(finalBoard,()=>{aiEnd();endTurn(true);}),400);
-      });
+    // Advance on relic (easy sometimes picks wrong hero)
+    if(p1RelicKey){
+      // Easy: 60% picks best hero, 40% picks random hero
+      const heroKey=Math.random()<0.6?aiBestHeroFor(aiKeys,p1RelicKey,brd):aiKeys[Math.floor(Math.random()*aiKeys.length)];
+      const hero=brd[heroKey]?.hero;
+      aiSay(`${hero?.name} moves.`);addLog(`AI moves.`);
+      moveToward(heroKey,p1RelicKey,hero?.moveMax||3,brd,(fb)=>{aiDelay(()=>aiTryAttack(fb,()=>{aiEnd();endTurn(true);}),400);});
       return;
     }
 
-    // Fallback: attack or draw
-    const attacked=aiTryAttack(brd,null,true);
-    if(attacked)return;
-    if(deck.length>0){
-      const[card,...rest]=deck;
-      setP2Deck(rest);setP2Hand(h=>[...h,card]);
-      aiSay(`AI draws ${card.name}.`);addLog(`AI draws ${card.name}.`);
-    }
-    aiDelay(()=>{aiEnd();endTurn(true);},600);
+    // Fallback: attack or end
+    if(!aiTryAttack(brd,null,true)){aiDelay(()=>{aiEnd();endTurn(true);},500);}
   };
 
   // ── MEDIUM AI ────────────────────────────────────────────
+  // Medium: plays the objective correctly — scores, defends own relic, eliminates threats
   const aiMedium = (brd, bench, deck, hand, hpM) => {
     const aiKeys = Object.entries(brd).filter(([,v])=>v.type==="hero"&&v.hero?.id?.startsWith("p2_")).map(([k])=>k);
     const p1Keys = Object.entries(brd).filter(([,v])=>v.type==="hero"&&v.hero?.id?.startsWith("p1_")).map(([k])=>k);
     const p1Relic = getRelicKey(1);
+    const p2Relic = getRelicKey(2);
     const carrier = relicCarrier?.owner===1 ? aiKeys.find(k=>brd[k]?.hero?.id===relicCarrier?.heroId) : null;
+    // Is P1 carrying AI's relic?
+    const p1Carrier = relicCarrier?.owner===2 ? p1Keys.find(k=>brd[k]?.hero?.id===relicCarrier?.heroId) : null;
 
-    // Shared move logic — moves a hero toward target, then attacks, then ends turn
-    const doMove = (heroKey, targetKey, afterBoard) => {
-      const hero = afterBoard[heroKey]?.hero;
-      if(!hero||!targetKey){ aiDelay(()=>aiTryAttack(afterBoard,()=>{aiEnd();endTurn(true);}),400); return; }
-      const maxSteps = hero.moveMax||3;
-      const moveSteps = (cur, stepsLeft, curBoard) => {
-        if(stepsLeft<=0){ aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),500); return; }
-        const step = aiBestStep(cur, targetKey, curBoard);
-        if(!step||curBoard[step]){ aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),500); return; }
-        const nb={...curBoard}; nb[step]=nb[cur]; delete nb[cur];
-        setBoard({...nb});
-        aiDelay(()=>moveSteps(step, stepsLeft-1, nb), 650);
+    const doMove=(heroKey,targetKey,afterBoard)=>{
+      const hero=afterBoard[heroKey]?.hero;
+      if(!hero||!targetKey){aiDelay(()=>aiTryAttack(afterBoard,()=>{aiEnd();endTurn(true);}),400);return;}
+      const moveSteps=(cur,rem,cb)=>{
+        if(rem<=0){aiDelay(()=>aiTryAttack(cb,()=>{aiEnd();endTurn(true);}),500);return;}
+        const step=aiBestStep(cur,targetKey,cb);
+        if(!step||cb[step]){aiDelay(()=>aiTryAttack(cb,()=>{aiEnd();endTurn(true);}),500);return;}
+        const nb={...cb};nb[step]=nb[cur];delete nb[cur];setBoard({...nb});
+        aiDelay(()=>moveSteps(step,rem-1,nb),650);
       };
-      moveSteps(heroKey, maxSteps, afterBoard);
+      moveSteps(heroKey,hero.moveMax||3,afterBoard);
     };
 
-    // Priority 1: Spawn if < 3 heroes — then immediately move afterward
-    if(bench.length > 0 && aiKeys.length < 3) {
-      aiDelay(() => {
-        const d1=Math.ceil(Math.random()*6), d2=Math.ceil(Math.random()*6);
-        const tot=d1+d2;
-        aiSay(`AI rolls ${tot} (${d1}+${d2}).`); addLog(`AI rolls ${tot} (${d1}+${d2}).`);
-        if(tot < 3){ endTurn(true); return; }
-        let budget=tot, newBoard={...brd}, newBench=[...bench];
+    // Spawn if < 3 heroes
+    if(bench.length>0&&aiKeys.length<3){
+      aiDelay(()=>{
+        const d1=Math.ceil(Math.random()*6),d2=Math.ceil(Math.random()*6),tot=d1+d2;
+        aiSay(`AI rolls ${tot}.`);addLog(`AI rolls ${tot}.`);
+        if(tot<3){endTurn(true);return;}
+        let budget=tot,nb={...brd},newBench=[...bench];
         const order=['chance','nojo','jovel','madb','iza','austi','gravon','antoni'];
         for(const bid of order){
           const h=newBench.find(h=>h.id.endsWith(bid));
           if(h&&(h.spawnCost||3)<=budget){
-            let col=8, att=0;
-            while(newBoard[`0-${col}`]&&att<COLS){col=(col+1)%COLS;att++;}
-            if(!newBoard[`0-${col}`]){
-              newBoard[`0-${col}`]={type:"hero",hero:h};
-              budget-=(h.spawnCost||3);
-              newBench=newBench.filter(x=>x.id!==h.id);
-              aiSay(`AI spawns ${h.name}.`); addLog(`AI spawns ${h.name}.`);
-            }
+            let col=8,att=0;
+            while(nb[`0-${col}`]&&att<COLS){col=(col+1)%COLS;att++;}
+            if(!nb[`0-${col}`]){nb[`0-${col}`]={type:"hero",hero:h};budget-=(h.spawnCost||3);newBench=newBench.filter(x=>x.id!==h.id);aiSay(`AI spawns ${h.name}.`);addLog(`AI spawns ${h.name}.`);}
           }
         }
-        setBoard(newBoard); setP2Bench(newBench);
-        aiDelay(()=>{aiEnd();endTurn(true);}, 600);
-      }, 700);
+        setBoard(nb);setP2Bench(newBench);
+        aiDelay(()=>{aiEnd();endTurn(true);},600);
+      },700);
       return;
     }
 
-    // Priority 2: Carrier runs home
+    // PRIORITY 1: Score — carrier runs home
     if(carrier){
-      aiSay(`${brd[carrier]?.hero?.name} carrying relic home!`); addLog(`AI carrier heads home.`);
-      aiDelay(()=>doMove(carrier, "0-8", brd), 500);
+      aiSay(`${brd[carrier]?.hero?.name} scoring!`);addLog(`AI carrier heads home.`);
+      aiDelay(()=>doMove(carrier,"0-8",brd),400);
       return;
     }
 
-    // Priority 3: Attack if possible
-    const attacked = aiTryAttack(brd, null, true);
-    if(attacked) return;
-
-    // Priority 4: Move closest hero toward P1's relic
-    if(aiKeys.length > 0 && p1Relic){
-      const heroKey = aiKeys.reduce((a,b)=>aiDist(a,p1Relic)<aiDist(b,p1Relic)?a:b);
-      aiSay(`${brd[heroKey]?.hero?.name} advances on relic.`); addLog(`AI advances on relic.`);
-      aiDelay(()=>doMove(heroKey, p1Relic, brd), 500);
+    // PRIORITY 2: Defend — intercept P1 if they're carrying AI's relic
+    if(p1Carrier){
+      const interceptor=aiBestHeroFor(aiKeys,p1Carrier,brd);
+      aiSay(`${brd[interceptor]?.hero?.name} intercepting relic carrier!`);addLog(`AI intercepts carrier.`);
+      aiDelay(()=>doMove(interceptor,p1Carrier,brd),400);
       return;
     }
 
-    // Priority 5: Chase nearest P1 hero
-    if(aiKeys.length > 0 && p1Keys.length > 0){
-      const target = p1Keys[0];
-      const heroKey = aiKeys.reduce((a,b)=>aiDist(a,target)<aiDist(b,target)?a:b);
-      aiSay(`${brd[heroKey]?.hero?.name} pursuing enemy.`); addLog(`AI pursues enemy.`);
-      aiDelay(()=>doMove(heroKey, target, brd), 500);
+    // PRIORITY 3: Attack any reachable enemy
+    const attacked=aiTryAttack(brd,null,true);
+    if(attacked)return;
+
+    // PRIORITY 4: Chase P1's relic with best hero
+    if(p1Relic&&aiKeys.length>0){
+      const heroKey=aiBestHeroFor(aiKeys,p1Relic,brd);
+      aiSay(`${brd[heroKey]?.hero?.name} goes for relic.`);addLog(`AI pursues relic.`);
+      aiDelay(()=>doMove(heroKey,p1Relic,brd),500);
       return;
     }
 
-    // Fallback
-    aiDelay(()=>{aiEnd();endTurn(true);}, 500);
+    // PRIORITY 5: Chase nearest P1 hero with best attacker
+    if(p1Keys.length>0){
+      const target=p1Keys.reduce((a,b)=>aiDist(a,aiKeys[0]||"0-8")<aiDist(b,aiKeys[0]||"0-8")?a:b);
+      const heroKey=aiBestHeroFor(aiKeys,target,brd);
+      aiSay(`${brd[heroKey]?.hero?.name} advances.`);addLog(`AI advances.`);
+      aiDelay(()=>doMove(heroKey,target,brd),500);
+      return;
+    }
+
+    // Healer repositioning
+    const healerKeys=aiKeys.filter(k=>{const bid=(brd[k]?.hero?.id||'').replace(/^p[12]_/,'');return['iza','austi'].includes(bid);});
+    if(healerKeys.length){
+      const wounded=aiKeys.find(k=>{const h=brd[k]?.hero;if(!h)return false;const bid=h.id.replace(/^p[12]_/,'');if(['iza','austi'].includes(bid))return false;return(hpM[h.id]??h.maxHp)<h.maxHp*0.7;});
+      const healTarget=wounded||(p1Keys.length?p1Keys[0]:null);
+      if(healTarget){aiSay(`${brd[healerKeys[0]]?.hero?.name} supports.`);addLog(`AI healer moves.`);aiDelay(()=>doMove(healerKeys[0],healTarget,brd),500);return;}
+    }
+
+    aiDelay(()=>{aiEnd();endTurn(true);},500);
   };
 
   // ── HARD AI ──────────────────────────────────────────────
+  // Hard: full strategic awareness — scores aggressively, defends own relic, eliminates threats,
+  // plays cards, coordinates multi-hero pressure
   const aiHard = (brd, bench, deck, hand, hpM) => {
     const aiKeys = Object.entries(brd).filter(([,v])=>v.type==="hero"&&v.hero?.id?.startsWith("p2_")).map(([k])=>k);
     const p1Keys = Object.entries(brd).filter(([,v])=>v.type==="hero"&&v.hero?.id?.startsWith("p1_")).map(([k])=>k);
     const p1Relic = getRelicKey(1);
     const carrier = relicCarrier?.owner===1 ? aiKeys.find(k=>brd[k]?.hero?.id===relicCarrier?.heroId) : null;
+    const p1Carrier = relicCarrier?.owner===2 ? p1Keys.find(k=>brd[k]?.hero?.id===relicCarrier?.heroId) : null;
 
-    // Shared move logic
-    const doMove = (heroKey, targetKey, afterBoard) => {
-      const hero = afterBoard[heroKey]?.hero;
-      if(!hero||!targetKey){ aiDelay(()=>aiTryAttack(afterBoard,()=>{aiEnd();endTurn(true);}),400); return; }
-      const maxSteps = hero.moveMax||3;
-      const moveSteps = (cur, stepsLeft, curBoard) => {
-        if(stepsLeft<=0){ aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),400); return; }
-        const step = aiBestStep(cur, targetKey, curBoard);
-        if(!step||curBoard[step]){ aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn(true);}),400); return; }
-        const nb={...curBoard}; nb[step]=nb[cur]; delete nb[cur];
-        setBoard({...nb});
-        aiDelay(()=>moveSteps(step, stepsLeft-1, nb), 550);
+    const doMove=(heroKey,targetKey,afterBoard)=>{
+      const hero=afterBoard[heroKey]?.hero;
+      if(!hero||!targetKey){aiDelay(()=>aiTryAttack(afterBoard,()=>{aiEnd();endTurn(true);}),400);return;}
+      const moveSteps=(cur,rem,cb)=>{
+        if(rem<=0){aiDelay(()=>aiTryAttack(cb,()=>{aiEnd();endTurn(true);}),400);return;}
+        const step=aiBestStep(cur,targetKey,cb);
+        if(!step||cb[step]){aiDelay(()=>aiTryAttack(cb,()=>{aiEnd();endTurn(true);}),400);return;}
+        const nb={...cb};nb[step]=nb[cur];delete nb[cur];setBoard({...nb});
+        aiDelay(()=>moveSteps(step,rem-1,nb),550);
       };
-      moveSteps(heroKey, maxSteps, afterBoard);
+      moveSteps(heroKey,hero.moveMax||3,afterBoard);
     };
 
-    // Priority 1: Play a useful card
-    if(hand.length > 0){
-      const useful = hand.find(c=>['forced_march','emergency_deploy','rally_point','momentum_shift','adrenaline_rush'].includes(c.key));
-      if(useful && Math.random() > 0.35){
-        aiSay(`AI plays ${useful.name}.`); addLog(`AI plays ${useful.name}.`);
-        const newHand = hand.filter(c=>c!==useful);
-        setP2Hand(newHand); setP2Discard(d=>[...d,useful]);
+    // Play a card if beneficial
+    if(hand.length>0){
+      const useful=hand.find(c=>['forced_march','emergency_deploy','rally_point','momentum_shift','adrenaline_rush'].includes(c.key));
+      if(useful&&Math.random()>0.3){
+        aiSay(`AI plays ${useful.name}.`);addLog(`AI plays ${useful.name}.`);
+        const newHand=hand.filter(c=>c!==useful);
+        setP2Hand(newHand);setP2Discard(d=>[...d,useful]);
         if(useful.key==='rally_point'){
-          const newHpM={...hpM};
-          aiKeys.forEach(k=>{const h=brd[k]?.hero;if(h)newHpM[h.id]=Math.min(h.maxHp,(newHpM[h.id]??h.maxHp)+2);});
-          setHpMap(newHpM);
+          const nm={...hpM};aiKeys.forEach(k=>{const h=brd[k]?.hero;if(h)nm[h.id]=Math.min(h.maxHp,(nm[h.id]??h.maxHp)+2);});setHpMap(nm);
         }
-        aiDelay(()=>aiMedium(brd,bench,deck,newHand,hpM), 500);
+        aiDelay(()=>aiMedium(brd,bench,deck,newHand,hpM),500);
         return;
       }
     }
 
-    // Priority 2: Spawn if < 4 heroes — then move in same turn
-    if(bench.length>0 && aiKeys.length<4){
+    // Spawn if < 4 heroes
+    if(bench.length>0&&aiKeys.length<4){
       aiDelay(()=>{
-        const d1=Math.ceil(Math.random()*6),d2=Math.ceil(Math.random()*6);
-        const tot=d1+d2;
-        aiSay(`AI rolls ${tot}.`); addLog(`AI rolls ${tot}.`);
+        const d1=Math.ceil(Math.random()*6),d2=Math.ceil(Math.random()*6),tot=d1+d2;
+        aiSay(`AI rolls ${tot}.`);addLog(`AI rolls ${tot}.`);
         if(tot<3){endTurn(true);return;}
-        let budget=tot,newBoard={...brd},newBench=[...bench];
-        const needsHealer=aiKeys.filter(k=>brd[k]?.hero&&(hpM[brd[k].hero.id]??brd[k].hero.maxHp)<brd[k].hero.maxHp*0.5).length>0;
+        let budget=tot,nb={...brd},newBench=[...bench];
+        const needsHealer=aiKeys.some(k=>brd[k]?.hero&&(hpM[brd[k].hero.id]??brd[k].hero.maxHp)<brd[k].hero.maxHp*0.5);
         const order=needsHealer?['iza','austi','nojo','chance','jovel','madb','gravon','antoni']:['nojo','chance','jovel','madb','iza','austi','gravon','antoni'];
         for(const bid of order){
           const h=newBench.find(h=>h.id.endsWith(bid));
           if(h&&(h.spawnCost||3)<=budget){
             let col=8,att=0;
-            while(newBoard[`0-${col}`]&&att<COLS){col=(col+1)%COLS;att++;}
-            if(!newBoard[`0-${col}`]){
-              newBoard[`0-${col}`]={type:"hero",hero:h};
-              budget-=(h.spawnCost||3);
-              newBench=newBench.filter(x=>x.id!==h.id);
-              aiSay(`AI spawns ${h.name}.`); addLog(`AI spawns ${h.name}.`);
-            }
+            while(nb[`0-${col}`]&&att<COLS){col=(col+1)%COLS;att++;}
+            if(!nb[`0-${col}`]){nb[`0-${col}`]={type:"hero",hero:h};budget-=(h.spawnCost||3);newBench=newBench.filter(x=>x.id!==h.id);aiSay(`AI spawns ${h.name}.`);addLog(`AI spawns ${h.name}.`);}
           }
         }
-        setBoard(newBoard); setP2Bench(newBench);
-        aiDelay(()=>{aiEnd();endTurn(true);}, 600);
+        setBoard(nb);setP2Bench(newBench);
+        aiDelay(()=>{aiEnd();endTurn(true);},600);
       },600);
       return;
     }
 
-    // Priority 3: Carrier runs home at full speed
+    // PRIORITY 1: Score — carrier runs home at full speed
     if(carrier){
-      aiSay(`${brd[carrier]?.hero?.name} runs relic home!`); addLog(`AI carrier beelines home.`);
-      aiDelay(()=>doMove(carrier, "0-8", brd), 400);
+      aiSay(`${brd[carrier]?.hero?.name} scoring!`);addLog(`AI carrier beelines home.`);
+      aiDelay(()=>doMove(carrier,"0-8",brd),300);
       return;
     }
 
-    // Priority 4: Attack weakest reachable enemy
-    const attacked = aiTryAttack(brd, null, true, true);
-    if(attacked) return;
+    // PRIORITY 2: Defend — eliminate P1's relic carrier immediately
+    if(p1Carrier){
+      // Try to attack the carrier first
+      const canHitCarrier=aiKeys.some(k=>brd[k]?.hero&&canAttack(k,p1Carrier,brd[k].hero,brd));
+      if(canHitCarrier){
+        aiSay(`Eliminating relic carrier!`);addLog(`AI targets carrier.`);
+        const pairs=[];
+        aiKeys.forEach(ak=>{if(canAttack(ak,p1Carrier,brd[ak]?.hero,brd))pairs.push({aKey:ak,tKey:p1Carrier,aHero:brd[ak].hero});});
+        if(pairs.length){
+          const chosen=pairs[0];
+          aiDelay(()=>{
+            aiSay(`${chosen.aHero.name} attacks carrier!`);addLog(`AI attacks carrier.`);
+            setAttackedOnTurn(turnNum);setAttackedByPlayer(2);
+            const profile=getAttackProfile(chosen.aHero);
+            const d1=Math.ceil(Math.random()*6),d2=profile.dice>1?Math.ceil(Math.random()*6):null;
+            const rolls=[d1,d2].filter(Boolean);
+            const dmg=profile.calcDamage(rolls),isCrit=profile.dice>1&&d1===d2;
+            setAttackDice([d1,d2]);setDiceRollKey(k=>k+1);
+            addLog(`AI rolls ${d1}${d2?"+"+d2:""} — ${dmg} dmg${isCrit?" CRIT!":""}.`);
+            aiDelay(()=>{applyDamage(chosen.tKey,dmg,chosen.aKey,isCrit,false,chosen.aHero.id);aiDelay(()=>{aiEnd();endTurn(true);},1200);},900);
+          },400);
+          return;
+        }
+      }
+      // Can't attack — chase them down
+      const interceptor=aiBestHeroFor(aiKeys,p1Carrier,brd);
+      aiSay(`${brd[interceptor]?.hero?.name} chasing carrier!`);addLog(`AI intercepts.`);
+      aiDelay(()=>doMove(interceptor,p1Carrier,brd),400);
+      return;
+    }
 
-    // Priority 5: Closest hero chases P1's relic
+    // PRIORITY 3: Attack weakest enemy (prefer low HP targets)
+    const attacked=aiTryAttack(brd,null,true,true);
+    if(attacked)return;
+
+    // PRIORITY 4: If relic is close enough to grab this turn, go for it
     if(p1Relic&&aiKeys.length>0){
-      const heroKey=aiKeys.reduce((a,b)=>aiDist(a,p1Relic)<aiDist(b,p1Relic)?a:b);
-      aiSay(`${brd[heroKey]?.hero?.name} goes for the relic!`); addLog(`AI pursues relic.`);
-      aiDelay(()=>doMove(heroKey, p1Relic, brd), 400);
+      const heroKey=aiBestHeroFor(aiKeys,p1Relic,brd);
+      const heroData=brd[heroKey]?.hero;
+      const stepsAvailable=heroData?.moveMax||3;
+      const relicDist=aiDist(heroKey,p1Relic);
+      // Hard: always pursue relic regardless of distance
+      aiSay(`${heroData?.name} goes for the relic!`);addLog(`AI pursues relic.`);
+      aiDelay(()=>doMove(heroKey,p1Relic,brd),400);
       return;
     }
 
-    // Priority 6: Hunt weakest P1 hero
+    // PRIORITY 5: Hunt weakest P1 hero to clear the path
     if(p1Keys.length>0&&aiKeys.length>0){
       const weakest=p1Keys.reduce((a,b)=>(hpM[brd[a]?.hero?.id]??brd[a]?.hero?.maxHp??99)<(hpM[brd[b]?.hero?.id]??brd[b]?.hero?.maxHp??99)?a:b);
-      const heroKey=aiKeys.reduce((a,b)=>aiDist(a,weakest)<aiDist(b,weakest)?a:b);
-      aiSay(`${brd[heroKey]?.hero?.name} hunts ${brd[weakest]?.hero?.name}!`); addLog(`AI hunts enemy.`);
-      aiDelay(()=>doMove(heroKey, weakest, brd), 400);
+      const heroKey=aiBestHeroFor(aiKeys,weakest,brd);
+      aiSay(`${brd[heroKey]?.hero?.name} hunting ${brd[weakest]?.hero?.name}!`);addLog(`AI hunts enemy.`);
+      aiDelay(()=>doMove(heroKey,weakest,brd),400);
       return;
     }
 
-    // Fallback
     aiDelay(()=>{aiEnd();endTurn(true);},500);
   };
 
-  // ── AI TRIGGER ───────────────────────────────────────────
+    // ── AI TRIGGER ───────────────────────────────────────────
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(()=>{
     if(!isAI||turn!==2||phase!=="choose"||roundWinner||matchWinner||showPassScreen) return;
