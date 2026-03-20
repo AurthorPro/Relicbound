@@ -32,6 +32,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
   <script id="app-src" type="text/plain">
+const { useState, useEffect } = React;
 
 const EMBLEM = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAA8ADwDASIAAhEBAxEB/8QAGwABAAIDAQEAAAAAAAAAAAAAAAUGAgMEBwH/xAAuEAACAQMDAwIFAwUAAAAAAAABAgMABBEFEiETIjFBYQYUIzJRFULBFkNxgZH/xAAWAQEBAQAAAAAAAAAAAAAAAAAAAQL/xAAXEQEBAQEAAAAAAAAAAAAAAAAAAREx/9oADAMBAAIRAxEAPwDzClKUClTln8MXt0YtnfuOJUiXc0Pnhi21A3jt3ZGRkecTX9H2iQwqwmab+71byOI+pOERZMDGOS3oeKCk0q4X/wAEyn6mlpdNHlQd3TlVfG4ho23sPJGIwcY4zVc1PTJ9NlCSskiNwJIySu7ALKcgEMuQCpAI/Hig4qUpQKt+maXa2GmG41CFHc5Hax3OWA+n54C+DwGyWU8A7qxYSxQ6hbSzruijlVnGwPlQQT2ng8eh4NW9yBp8THdcpbysG6oKFgx3LIec9wIbknzVk2peJC1jedoo9ReVYQg2wwgiKMEdgcKOMgHGPQeBXV85baTcKJrOEgEkdFNqvFtwWDHOR3cH28etaxd9SbopFInzILrLCM7+AD7qRjH445xS3nOl2/ypErEb2LQoWBJP29xxn/Hb+QfNaR29K3a2M725jmJ+gLWJo5257TjOAD6E+TnzWme3S6kiGrNFcC5i6VveYyNp5CSDjcMj2IIJG1gDXxR8rJd6mOr0pSCYo1Y7Txw4Yn/p7ffwK16hdNPFb2yWsaSSuZBGGO6Ms2c8Y5PnHuPzTpxRfiLTf03U5FSMRRO7FIw27pYPKE+TjjBPJUq2BnFRVWn4uuo5usDM8kklwrRgxAKVRNjSBs/uYbTgYPS5OQKq1YrRXfp2py6e5aNVYEbWQjtkXPhv4Pn+OClBcba9tmRRFdiAOCTb3XCPyQcMOCMgj/VS8GoyWxPWt1dN6yoUlEoLAYI9geK84DEKVBOCckelbJLiR5GfKoWUKemoQEAAeFwPTn8+TV1MXqa8kQB7q5trOQ5JkacvICeWwB459qh9T1oWxaK0EwaZQXuJFCSMCAe0ftDAg598iq6Z5MRAFVMP2MihW85ySBknPqa1U0xk7b3LbVXPoo4FY0pUUpSlApSlApSlApSlB//Z";
 
@@ -4622,7 +4623,9 @@ function RelicboundGame({gameMode,difficulty}){
             setP(85,'Starting...');
             setTimeout(function(){
               try{
-                new Function('React','ReactDOM',out)(React,ReactDOM);
+                var hookDecls = 'var useState=React.useState,useEffect=React.useEffect,useRef=React.useRef,useCallback=React.useCallback,useMemo=React.useMemo,useContext=React.useContext,useReducer=React.useReducer;';
+                var fn = new Function('React','ReactDOM', hookDecls + out);
+                fn(React, ReactDOM);
                 document.getElementById('loading').style.display='none';
               }catch(e){status.textContent='Runtime error';showErr(e);}
             },50);
