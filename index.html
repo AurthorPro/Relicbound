@@ -2227,7 +2227,6 @@ function RelicboundGame({gameMode,difficulty}){
           if(isCrit)
           setAttackResult({damage:dmg,crit:isCrit,splash:!!profile.splash,rolls});
           const isRange2=["jovel","madb"].includes(bid);
-          if(isRange2)else
           const targetName=board[tKey]?.hero?.name||"target";
           addLog(`${hero.name} attacks ${targetName} for ${dmg} damage${isCrit?" — CRIT!":""}.`);
           const hasBrace=defenderHasReaction("brace");
