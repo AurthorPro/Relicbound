@@ -4581,8 +4581,21 @@ function RelicboundGame({gameMode,difficulty}){
   );
 }
 
+    class ErrorBoundary extends React.Component {
+      constructor(p){super(p);this.state={err:null};}
+      static getDerivedStateFromError(e){return{err:e};}
+      componentDidCatch(e,info){console.error('React error:',e,info);}
+      render(){
+        if(this.state.err){
+          return React.createElement('div',{style:{color:'#ff6a6a',padding:'20px',fontFamily:'monospace',fontSize:'12px',background:'#0a0806',minHeight:'100vh',whiteSpace:'pre-wrap'}},
+            'Runtime Error:\n\n' + (this.state.err.stack||this.state.err.message)
+          );
+        }
+        return this.props.children;
+      }
+    }
     const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(React.createElement(RelicboundApp, null));
+    root.render(React.createElement(ErrorBoundary,null,React.createElement(RelicboundApp,null)));
   </script>
   <script>
     var bar=document.getElementById('lbar'),status=document.getElementById('lstatus');
