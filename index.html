@@ -1378,7 +1378,7 @@ function useWindowWidth() {
 
 function RelicboundGame({gameMode,difficulty}
 
-export default function RelicboundApp(){
+function RelicboundApp(){
   const[screen,setScreen]=useState("menu"); // menu | rules | deck | game
   const[gameMode,setGameMode]=useState(null);
   const[difficulty,setDifficulty]=useState(null);
@@ -4578,8 +4578,6 @@ export default function RelicboundApp(){
   );
 }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(React.createElement(RelicboundApp, null));
   </script>
   <script>
     var bar=document.getElementById('lbar'),status=document.getElementById('lstatus');
