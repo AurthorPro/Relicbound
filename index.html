@@ -5,21 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
   <title>Relicbound</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #050302; overflow-x: hidden; }
-    button { outline: none; }
-    #loading {
-      position: fixed; inset: 0; background: #050302;
-      display: flex; align-items: center; justify-content: center;
-      flex-direction: column; gap: 16px; z-index: 9999;
-      font-family: Georgia, serif;
-    }
-    .lt { font-size: 2rem; letter-spacing: 0.2em; text-transform: uppercase;
-      background: linear-gradient(180deg,#e8d080,#c8a840);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .lbw { width: 200px; height: 3px; background: #1a1408; border-radius: 2px; overflow: hidden; }
-    .lb { height: 100%; width: 0%; background: linear-gradient(90deg,#c8a840,#e8d080); transition: width 0.4s; border-radius: 2px; }
-    .ls { font-size: 0.5rem; letter-spacing: 0.2em; text-transform: uppercase; color: #3a3010; }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#050302;overflow-x:hidden;}
+    button{outline:none;}
+    #loading{position:fixed;inset:0;background:#050302;display:flex;align-items:center;
+      justify-content:center;flex-direction:column;gap:16px;z-index:9999;font-family:Georgia,serif;}
+    .lt{font-size:2rem;letter-spacing:.2em;text-transform:uppercase;
+      background:linear-gradient(180deg,#e8d080,#c8a840);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    .lbw{width:200px;height:3px;background:#1a1408;border-radius:2px;overflow:hidden;}
+    .lb{height:100%;width:0%;background:linear-gradient(90deg,#c8a840,#e8d080);transition:width .4s;border-radius:2px;}
+    .ls{font-size:.5rem;letter-spacing:.2em;text-transform:uppercase;color:#3a3010;}
   </style>
 </head>
 <body>
@@ -242,390 +238,6 @@ function getTileStyle(row,col,hovered,validSpawn,validMove,isTankRight,validTarg
   return{bg:`rgb(${base+2},${base},${base-2})`,border:`rgba(${base+10},${base+8},${base+6},0.45)`,glow:"none"};
 }
 
-
-// ─── AUDIO ENGINE ────────────────────────────────────────────
-const SFX = (() => {
-  let ctx = null;
-  const getCtx = () => {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-    if (ctx.state === 'suspended') ctx.resume();
-    return ctx;
-  };
-
-  const play = (fn) => { try { fn(getCtx()); } catch(e) {} };
-
-  // Core oscillator helper
-  const osc = (c, type, freq, gainVal, start, dur, freqEnd) => {
-    const o = c.createOscillator();
-    const g = c.createGain();
-    o.connect(g); g.connect(c.destination);
-    o.type = type; o.frequency.setValueAtTime(freq, c.currentTime + start);
-    if (freqEnd !== undefined) o.frequency.exponentialRampToValueAtTime(freqEnd, c.currentTime + start + dur);
-    g.gain.setValueAtTime(gainVal, c.currentTime + start);
-    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + start + dur);
-    o.start(c.currentTime + start); o.stop(c.currentTime + start + dur + 0.01);
-  };
-
-  // Noise burst helper (for impacts, rolls)
-  const noise = (c, gainVal, start, dur, filterFreq = 2000) => {
-    const buf = c.createBuffer(1, c.sampleRate * dur, c.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    const src = c.createBufferSource();
-    const flt = c.createBiquadFilter();
-    const g = c.createGain();
-    flt.type = 'bandpass'; flt.frequency.value = filterFreq;
-    src.buffer = buf; src.connect(flt); flt.connect(g); g.connect(c.destination);
-    g.gain.setValueAtTime(gainVal, c.currentTime + start);
-    g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + start + dur);
-    src.start(c.currentTime + start); src.stop(c.currentTime + start + dur + 0.01);
-  };
-
-  return {
-    // ── Movement ── one soft step per tile
-    step: () => play(c => {
-      noise(c, 0.06, 0, 0.06, 800);
-      osc(c, 'sine', 180, 0.04, 0, 0.07);
-    }),
-
-    // ── Dice rolling ── rapid rattling
-    diceRoll: () => play(c => {
-      for (let i = 0; i < 4; i++) {
-        noise(c, 0.12, i * 0.07, 0.06, 1200);
-        osc(c, 'square', 200 + Math.random()*200, 0.03, i*0.07, 0.05);
-      }
-    }),
-
-    // ── Dice settle ── satisfying thud
-    diceSettle: () => play(c => {
-      noise(c, 0.25, 0, 0.12, 600);
-      osc(c, 'sine', 120, 0.15, 0, 0.15, 60);
-    }),
-
-    // ── Spawn hero ── heroic arrival
-    spawn: () => play(c => {
-      osc(c, 'sine',   220, 0.2,  0,    0.12, 330);
-      osc(c, 'sine',   330, 0.15, 0.08, 0.14, 440);
-      osc(c, 'triangle',440, 0.1, 0.18, 0.18, 550);
-      noise(c, 0.08, 0, 0.1, 1000);
-    }),
-
-    // ── Melee attack ── sword clash
-    attackMelee: () => play(c => {
-      noise(c, 0.35, 0,    0.08, 3000);
-      noise(c, 0.2,  0.06, 0.12, 1500);
-      osc(c, 'sawtooth', 180, 0.12, 0, 0.1, 80);
-    }),
-
-    // ── Ranged attack ── arrow/bolt release
-    attackRange: () => play(c => {
-      osc(c, 'sawtooth', 600, 0.08, 0,    0.04, 200);
-      osc(c, 'sine',     300, 0.06, 0.03, 0.08, 100);
-      noise(c, 0.1, 0, 0.06, 2500);
-    }),
-
-    // ── Critical hit ── extra impact
-    crit: () => play(c => {
-      noise(c, 0.4,  0,    0.1,  4000);
-      noise(c, 0.25, 0.06, 0.15, 1000);
-      osc(c, 'sawtooth', 250, 0.15, 0,    0.12, 80);
-      osc(c, 'sine',     440, 0.1,  0.08, 0.2,  220);
-    }),
-
-    // ── Damage taken ── hurt grunt/thud
-    hit: () => play(c => {
-      noise(c, 0.3,  0,    0.08, 400);
-      osc(c, 'sawtooth', 100, 0.2, 0, 0.12, 50);
-    }),
-
-    // ── Hero defeated ── dramatic fall
-    defeat: () => play(c => {
-      osc(c, 'sine', 440, 0.2,  0,    0.15, 220);
-      osc(c, 'sine', 220, 0.18, 0.12, 0.2,  110);
-      osc(c, 'sine', 110, 0.12, 0.28, 0.3,  55);
-      noise(c, 0.15, 0, 0.4, 300);
-    }),
-
-    // ── Heal ── soft magical chime
-    heal: () => play(c => {
-      osc(c, 'sine', 523, 0.15, 0,    0.18);
-      osc(c, 'sine', 659, 0.12, 0.08, 0.18);
-      osc(c, 'sine', 784, 0.1,  0.16, 0.2);
-      osc(c, 'sine', 1046,0.08, 0.24, 0.2);
-    }),
-
-    // ── Relic pickup ── shimmering treasure sound
-    relicPickup: () => play(c => {
-      for (let i = 0; i < 6; i++) {
-        osc(c, 'sine', 440 * Math.pow(1.15, i), 0.1 - i*0.01, i*0.04, 0.2 - i*0.02);
-      }
-      noise(c, 0.06, 0, 0.15, 3000);
-    }),
-
-    // ── Relic score ── triumphant fanfare
-    score: () => play(c => {
-      const notes = [261, 329, 392, 523, 659, 784];
-      notes.forEach((f, i) => osc(c, 'sine', f, 0.2 - i*0.02, i*0.06, 0.3));
-      osc(c, 'triangle', 1046, 0.1, 0.3, 0.4);
-      noise(c, 0.1, 0, 0.5, 2000);
-    }),
-
-    // ── Round win ── victorious bells
-    roundWin: () => play(c => {
-      const chord = [261, 329, 392, 523];
-      chord.forEach((f, i) => {
-        osc(c, 'sine',     f,   0.18, i*0.05, 0.6);
-        osc(c, 'triangle', f*2, 0.06, i*0.05, 0.4);
-      });
-    }),
-
-    // ── Match win ── full victory fanfare
-    matchWin: () => play(c => {
-      const melody = [261,329,392,523,659,523,659,784,1046];
-      melody.forEach((f, i) => {
-        osc(c, 'sine',     f,   0.2,  i*0.12, 0.2);
-        osc(c, 'triangle', f*2, 0.07, i*0.12, 0.15);
-      });
-      noise(c, 0.08, 0, 1.2, 800);
-    }),
-
-    // ── Trap placed ── sneaky click
-    trapPlace: () => play(c => {
-      osc(c, 'square', 300, 0.1, 0,    0.05, 150);
-      osc(c, 'square', 150, 0.08,0.04, 0.08, 100);
-      noise(c, 0.08, 0, 0.06, 1000);
-    }),
-
-    // ── Trap triggered ── snap/shock
-    trapTrigger: () => play(c => {
-      noise(c, 0.4,  0,    0.06, 3500);
-      noise(c, 0.25, 0.05, 0.1,  800);
-      osc(c, 'sawtooth', 200, 0.15, 0, 0.12, 50);
-    }),
-
-    // ── Card draw ── paper swoosh
-    cardDraw: () => play(c => {
-      osc(c, 'sine', 800, 0.06, 0,    0.06, 1200);
-      noise(c, 0.08, 0, 0.08, 3000);
-    }),
-
-    // ── Card play ── magical activation
-    cardPlay: () => play(c => {
-      osc(c, 'sine', 440, 0.12, 0,    0.1, 660);
-      osc(c, 'sine', 660, 0.1,  0.06, 0.12, 880);
-      noise(c, 0.06, 0, 0.15, 2000);
-    }),
-
-    // ── Brace ── shield block clang
-    brace: () => play(c => {
-      noise(c, 0.3,  0,    0.06, 4000);
-      osc(c, 'sawtooth', 250, 0.15, 0, 0.15, 200);
-      osc(c, 'sine',     500, 0.1,  0.03, 0.2, 400);
-    }),
-
-    // ── Last Stand ── desperate surge
-    lastStand: () => play(c => {
-      osc(c, 'sawtooth', 110, 0.25, 0,    0.08, 220);
-      osc(c, 'sine',     440, 0.2,  0.06, 0.2,  660);
-      osc(c, 'sine',     880, 0.1,  0.15, 0.2,  1100);
-      noise(c, 0.15, 0, 0.25, 1500);
-    }),
-
-    // ── Special ability ── powerful activation
-    special: () => play(c => {
-      noise(c, 0.12, 0, 0.3, 1500);
-      for (let i = 0; i < 5; i++) {
-        osc(c, 'sine', 220 * Math.pow(1.25, i), 0.15, i*0.05, 0.25 - i*0.03);
-      }
-    }),
-
-    // ── Rally the Front ── war cry
-    rallyFront: () => play(c => {
-      osc(c, 'sawtooth', 110, 0.2,  0,    0.1,  220);
-      osc(c, 'sawtooth', 220, 0.18, 0.08, 0.15, 330);
-      osc(c, 'sine',     440, 0.15, 0.2,  0.2,  660);
-      noise(c, 0.2, 0, 0.35, 2000);
-    }),
-
-    // ── Cataclysm ── massive explosion
-    cataclysm: () => play(c => {
-      noise(c, 0.5,  0,    0.2,  200);
-      noise(c, 0.35, 0.15, 0.3,  600);
-      osc(c, 'sawtooth', 80,  0.3,  0,    0.3,  40);
-      osc(c, 'sine',     160, 0.15, 0.1,  0.25, 60);
-      for (let i = 0; i < 4; i++)
-        osc(c, 'sine', 880 - i*150, 0.08, i*0.04, 0.15 - i*0.02);
-    }),
-
-    // ── Crescendo ── healing wave
-    crescendo: () => play(c => {
-      const notes = [261,329,392,523,659];
-      notes.forEach((f,i) => osc(c,'sine',f, 0.12, i*0.07, 0.35, f*1.5));
-      noise(c, 0.05, 0, 0.5, 2500);
-    }),
-
-    // ── Lifeline Surge ── powerful heal burst
-    lifeline: () => play(c => {
-      osc(c, 'sine', 220, 0.2,  0,    0.1,  440);
-      osc(c, 'sine', 440, 0.18, 0.08, 0.15, 660);
-      osc(c, 'sine', 880, 0.12, 0.18, 0.25, 1100);
-      noise(c, 0.08, 0, 0.4, 2000);
-    }),
-
-    // ── Bulwark Stand ── heavy fortification
-    bulwark: () => play(c => {
-      noise(c, 0.25, 0,    0.1,  500);
-      osc(c, 'sawtooth', 120, 0.2, 0, 0.2, 80);
-      osc(c, 'square',   240, 0.1, 0.1, 0.15, 180);
-    }),
-
-    // ── Shield Push ── slam and skid
-    shieldPush: () => play(c => {
-      noise(c, 0.3, 0,    0.06, 3000);
-      noise(c, 0.15,0.05, 0.1,  600);
-      osc(c, 'sine', 200, 0.15, 0, 0.12, 100);
-    }),
-
-    // ── Deadeye Lock ── arrow pin sound
-    deadeye: () => play(c => {
-      osc(c, 'sine', 880, 0.1,  0,    0.06, 440);
-      osc(c, 'sine', 440, 0.08, 0.05, 0.1,  220);
-      noise(c, 0.12, 0, 0.08, 2000);
-    }),
-
-    // ── Twin Strike ── double slash
-    twinStrike: () => play(c => {
-      noise(c, 0.25, 0,    0.06, 3000);
-      noise(c, 0.25, 0.12, 0.06, 3000);
-      osc(c, 'sawtooth', 200, 0.1, 0,    0.08, 100);
-      osc(c, 'sawtooth', 250, 0.1, 0.12, 0.08, 120);
-    }),
-
-    // ── Disrupt Signal ── static crackle
-    disrupt: () => play(c => {
-      noise(c, 0.2,  0,    0.04, 4000);
-      noise(c, 0.15, 0.03, 0.04, 4000);
-      noise(c, 0.1,  0.06, 0.04, 4000);
-      osc(c, 'square', 400, 0.08, 0, 0.1, 200);
-    }),
-
-    // ── Overwatch ── bowstring tension
-    overwatch: () => play(c => {
-      osc(c, 'sine', 300, 0.08, 0,    0.15, 500);
-      noise(c, 0.05, 0, 0.15, 2000);
-    }),
-
-    // ── End turn ── soft click transition
-    endTurn: () => play(c => {
-      osc(c, 'sine', 440, 0.08, 0,    0.06, 330);
-      osc(c, 'sine', 330, 0.06, 0.04, 0.08, 220);
-    }),
-
-    // ── Button click ── UI feedback
-    click: () => play(c => {
-      osc(c, 'sine', 600, 0.06, 0, 0.04, 400);
-    }),
-
-    // ── Adrenaline Rush ── energising surge
-    adrenaline: () => play(c => {
-      for (let i = 0; i < 5; i++)
-        osc(c, 'sawtooth', 200 + i*80, 0.08, i*0.03, 0.08);
-      noise(c, 0.08, 0, 0.18, 1800);
-    }),
-
-    // ── Forced March ── quick marching steps
-    forcedMarch: () => play(c => {
-      for (let i = 0; i < 4; i++) {
-        noise(c, 0.1, i*0.08, 0.05, 700);
-        osc(c, 'sine', 160 + (i%2)*40, 0.06, i*0.08, 0.06);
-      }
-    }),
-
-    // ── Emergency Deploy ── teleport whoosh
-    emergencyDeploy: () => play(c => {
-      osc(c, 'sine', 200, 0.15, 0, 0.2, 800);
-      noise(c, 0.12, 0, 0.2, 1500);
-      osc(c, 'sine', 800, 0.1, 0.15, 0.15, 1200);
-    }),
-
-    // ── Momentum Shift ── sweeping force
-    momentumShift: () => play(c => {
-      osc(c, 'sine', 150, 0.15, 0, 0.3, 400);
-      noise(c, 0.1, 0, 0.3, 1200);
-      for (let i = 0; i < 4; i++)
-        noise(c, 0.08, i*0.06, 0.08, 800);
-    }),
-
-    // ── Tactical Advance ── coordinated march
-    tacticalAdvance: () => play(c => {
-      for (let i = 0; i < 3; i++) {
-        noise(c, 0.1, i*0.1, 0.06, 900);
-        osc(c, 'sine', 200, 0.07, i*0.1, 0.07);
-      }
-    }),
-
-    // ── Rally Point ── healing horn
-    rallyPoint: () => play(c => {
-      osc(c, 'sine', 392, 0.15, 0,    0.2, 523);
-      osc(c, 'sine', 523, 0.12, 0.15, 0.2, 659);
-      noise(c, 0.05, 0, 0.35, 1500);
-    }),
-
-    // ── Second Wind ── breath recovery
-    secondWind: () => play(c => {
-      osc(c, 'sine', 330, 0.1, 0,    0.15, 440);
-      osc(c, 'sine', 440, 0.08,0.12, 0.18, 523);
-      noise(c, 0.04, 0, 0.2, 1200);
-    }),
-
-    // ── Board flip ── whoosh
-    boardFlip: () => play(c => {
-      osc(c, 'sine', 300, 0.07, 0, 0.2, 150);
-      noise(c, 0.06, 0, 0.2, 1500);
-    }),
-
-    // ── Hex Seal ── dark magic
-    hex: () => play(c => {
-      osc(c, 'sawtooth', 220, 0.12, 0,    0.15, 110);
-      osc(c, 'square',   440, 0.08, 0.1,  0.12, 220);
-      noise(c, 0.06, 0, 0.2, 800);
-    }),
-
-    // ── Fracture Field ── cracking ground
-    fracture: () => play(c => {
-      noise(c, 0.2,  0,    0.08, 500);
-      noise(c, 0.15, 0.06, 0.1,  300);
-      osc(c, 'sawtooth', 150, 0.1, 0, 0.15, 80);
-    }),
-
-    // ── Snare ── snap and freeze
-    snare: () => play(c => {
-      noise(c, 0.25, 0,    0.05, 3000);
-      noise(c, 0.12, 0.04, 0.08, 600);
-      osc(c, 'square', 300, 0.1, 0, 0.08, 150);
-    }),
-
-    // ── Dead Zone ── silence pressure
-    deadZone: () => play(c => {
-      osc(c, 'sine', 100, 0.15, 0, 0.2, 60);
-      noise(c, 0.08, 0, 0.25, 300);
-    }),
-
-    // ── Rebound Rune ── elastic push
-    rebound: () => play(c => {
-      osc(c, 'sine', 400, 0.12, 0,    0.06, 800);
-      osc(c, 'sine', 600, 0.1,  0.05, 0.12, 300);
-      noise(c, 0.1, 0, 0.12, 2000);
-    }),
-
-    // ── Power Strike buff ── weapon charge
-    powerStrike: () => play(c => {
-      osc(c, 'sawtooth', 200, 0.1, 0,    0.12, 400);
-      osc(c, 'square',   400, 0.06,0.08, 0.1,  600);
-      noise(c, 0.06, 0, 0.15, 2500);
-    }),
-  };
-})();
 
 // ─── CSS LOGO ────────────────────────────────────────────────
 function RelicboundLogo() {
@@ -1961,7 +1573,6 @@ export default function RelicboundApp(){
     setP1RoundWins(newP1Wins);
     setP2RoundWins(newP2Wins);
     if(newP1Wins>=ROUNDS_TO_WIN||newP2Wins>=ROUNDS_TO_WIN){
-      SFX.matchWin();
       setMatchWinner(newP1Wins>=ROUNDS_TO_WIN?1:2);
       return;
     }
@@ -2019,7 +1630,6 @@ export default function RelicboundApp(){
 
   // ── END TURN ──────────────────────────────────────────────
   const endTurn=()=>{
-    SFX.endTurn();
     const nextTurn=turn===1?2:1;
     const nextTurnNum=turn===2?turnNum+1:turnNum;
     setTurn(nextTurn);
@@ -2050,7 +1660,6 @@ export default function RelicboundApp(){
   const isDisrupted=()=>hexedHeroes[`p${turn}_draw_skip`]===true;
 
   const rollSpawn=()=>{
-    SFX.diceRoll();
     setDiceRollKey(k=>k+1);
     setSpawnRolling(true);setSpawnSettling(false);setSpawnDice([null,null]);
     let c=0;
@@ -2062,7 +1671,6 @@ export default function RelicboundApp(){
         const tot=d1+d2;
         setSpawnRolling(false);setSpawnSettling(true);setSpawnDice([null,null]);
         setTimeout(()=>{
-          SFX.diceSettle();
           setSpawnDice([d1,d2]);setSpawnSettling(false);
           if(tot<3){
             addLog(`Rolled ${tot} — too low! Turn lost.`);
@@ -2097,7 +1705,6 @@ export default function RelicboundApp(){
   const placeHero=(row,col)=>{
     if(!isValidSpawn(row,col)||!selectedHero)return;
     const key=`${row}-${col}`;
-    SFX.spawn();
     const nb={...board};
     nb[key]={type:"hero",hero:selectedHero};
     setBoard(nb);
@@ -2152,7 +1759,6 @@ export default function RelicboundApp(){
   };
 
   const commitTrap=(anchorKey)=>{
-    SFX.trapPlace();
     if(!placingTrap)return;
     const[ar,ac]=anchorKey.split("-").map(Number);
     const tiles=placingTrap.tilesNeeded===1
@@ -2180,7 +1786,6 @@ export default function RelicboundApp(){
   const ENTER_TRAPS=["snare_plate","crush_tile","hex_seal"];
 
   const applyTrapHit=(hit,hero,atKey)=>{
-    SFX.trapTrigger();
     addLog(`${hero.name} triggered ${hit.name}!`);
     if(hit.type==="crush_tile"){
       setHpMap(prev=>{const cur=prev[hero.id]??hero.maxHp;return{...prev,[hero.id]:Math.max(0,cur-2)};});
@@ -2303,11 +1908,9 @@ export default function RelicboundApp(){
       const spaces=hero.moveMax||3;
       setMoveDice([null,null]);setMoveRoll(spaces);setMovesLeft(spaces);
       setPhase("move-execute");
-      SFX.adrenaline();
       addLog(`Full Charge! Antoni moves ${spaces} spaces freely.`);
       return;
     }
-    SFX.diceRoll();
     setDiceRollKey(k=>k+1);
     setMoveRolling(true);setMoveSettling(false);setMoveDice([null,null]);
     let c=0;
@@ -2321,21 +1924,18 @@ export default function RelicboundApp(){
         const fd2=hero.moveDice>1?Math.ceil(Math.random()*6):null;
         setMoveRolling(false);setMoveSettling(true);setMoveDice([null,null]);
         setTimeout(()=>{
-          SFX.diceSettle();
           setMoveDice([fd1,fd2]);setMoveSettling(false);
           const rolls=[fd1,fd2].filter(Boolean);
           let spaces=calcMove(hero,hero.moveDice>1?rolls.reduce((a,b)=>a+b,0):fd1);
           // PASSIVE: Objective Runner (Nojo) +1 move while carrying relic
           if(bid==="nojo"&&relicCarrier?.heroId===hero.id){
             spaces+=1;
-            SFX.click();
             addLog(`Objective Runner! Nojo +1 movement while carrying relic.`);
           }
           // ACTIVATE: Shatter Step (Antoni) +1 forward movement
           if(bid==="antoni"&&hexedHeroes[hero.id+"_shatter"]){
             spaces+=1;
             setHexedHeroes(prev=>{const n={...prev};delete n[hero.id+"_shatter"];return n;});
-            SFX.adrenaline();
             addLog(`Shatter Step! Antoni gains +1 movement.`);
           }
           setMoveRoll(spaces);setMovesLeft(spaces);
@@ -2401,7 +2001,6 @@ export default function RelicboundApp(){
     if(!isTank&&originalTile?.type==="relic"&&!relicCarrier){
       const relicOwner=originalTile.owner;
       if(relicOwner!==turn){
-        SFX.relicPickup();
         newRelicCarrier={heroId:hero.id,owner:relicOwner,boardKey:toKey};
         setRelicCarrier(newRelicCarrier);
         addLog(`${hero.name} picked up the relic!`);
@@ -2436,14 +2035,11 @@ export default function RelicboundApp(){
       const relicOwner=turn===1?2:1;
       const findFree=(base)=>{if(!nb[base])return base;const[br,bc]=base.split("-").map(Number);for(let dc2=-4;dc2<=4;dc2++){const k=`${br}-${bc+dc2}`;const[,kc]=k.split("-").map(Number);if(kc>=0&&kc<COLS&&!nb[k])return k;}return base;};
       nb[findFree(baseKey)]={type:"relic",owner:relicOwner};
-      SFX.score();
       addLog(`${hero.name} scored! P${turn}: ${newScore}/${RELICS_TO_WIN}`);
-      if(newScore>=RELICS_TO_WIN){SFX.roundWin();setRoundWinner(turn);}
+      if(newScore>=RELICS_TO_WIN){setRoundWinner(turn);}
     }
 
     if(relicCarrier?.heroId===hero.id&&!isMyHome)setRelicCarrier({...relicCarrier,boardKey:toKey});
-
-    SFX.step();
     setBoard(nb);
     trapCheckOnMove(toKey,hero);
     trapCheckEndMove(toKey,hero);
@@ -2475,7 +2071,6 @@ export default function RelicboundApp(){
 
   // ── DEFEAT HERO ────────────────────────────────────────────
   const defeatHero=(key,hero)=>{
-    SFX.defeat();
     const[r,c]=key.split("-").map(Number);
     setBoard(prev=>{
       const nb={...prev};
@@ -2556,7 +2151,6 @@ export default function RelicboundApp(){
     const{tKey,dmg,aKey,isCrit,isSplash}=pendingAttack;
     const reduced=Math.max(0,dmg-2);
     defenderDiscardCard("brace");
-    SFX.brace();
     addLog(`Brace! Damage reduced from ${dmg} to ${reduced}.`);
     applyDamage(tKey,reduced,aKey,isCrit,isSplash,pendingAttack.attackerId);
     setPendingAttack(null);
@@ -2567,7 +2161,6 @@ export default function RelicboundApp(){
     const{tKey,dmg,aKey,isCrit,isSplash}=pendingAttack;
     defenderDiscardCard("last_stand");
     setLastStandActive(true);
-    SFX.lastStand();
     addLog(`Last Stand activated!`);
     applyDamage(tKey,dmg,aKey,isCrit,isSplash);
     setPendingAttack(null);
@@ -2583,7 +2176,6 @@ export default function RelicboundApp(){
 
   const rollAttack=(aKey,tKey,hero)=>{
     setAttackPhase("rolling");
-    SFX.diceRoll();
     setDiceRollKey(k=>k+1);
     setAttackRolling(true);setAttackSettling(false);setAttackDice([null,null]);
     setSpawnDice([null,null]);setMoveDice([null,null]);
@@ -2609,7 +2201,6 @@ export default function RelicboundApp(){
           setAttackPhase("result");
           setAttackResult({damage:8,crit:true,splash:false,rolls:[6,6]});
           const targetName=board[tKey]?.hero?.name||"target";
-          SFX.rallyFront();
           addLog(`Rally the Front! Auto-critical — 8 damage to ${targetName}!`);
           setCardPhase("idle");setPlayingCard(null);
           const hasBrace=defenderHasReaction("brace");
@@ -2623,17 +2214,16 @@ export default function RelicboundApp(){
         const strengthBonus=(bid==="chance"&&hasAdjacentAlly(aKey))?1:0;
         let dmg=profile.calcDamage(rolls)+psBonus+strengthBonus;
         const isCrit=profile.dice>1&&fd1===fd2;
-        if(strengthBonus>0){SFX.click();addLog(`Strength in Numbers! +1 damage.`);}
+        if(strengthBonus>0){addLog(`Strength in Numbers! +1 damage.`);}
         if(psBonus>0){setCardPhase("idle");setPlayingCard(null);}
         setAttackRolling(false);setAttackSettling(true);setAttackDice([null,null]);
         setTimeout(()=>{
-          SFX.diceSettle();
           setAttackDice([fd1,fd2]);setAttackSettling(false);
           setAttackPhase("result");
-          if(isCrit)SFX.crit();
+          if(isCrit)
           setAttackResult({damage:dmg,crit:isCrit,splash:!!profile.splash,rolls});
           const isRange2=["jovel","madb"].includes(bid);
-          if(isRange2)SFX.attackRange();else SFX.attackMelee();
+          if(isRange2)else
           const targetName=board[tKey]?.hero?.name||"target";
           addLog(`${hero.name} attacks ${targetName} for ${dmg} damage${isCrit?" — CRIT!":""}.`);
           const hasBrace=defenderHasReaction("brace");
@@ -2652,7 +2242,6 @@ export default function RelicboundApp(){
             setTimeout(()=>{
               setAttackPhase("select-target");
               setCardPhase("twin-strike-2");
-              SFX.twinStrike();
               addLog(`Twin Strike — select second target (or same hero).`);
             },600);
           }
@@ -2664,7 +2253,6 @@ export default function RelicboundApp(){
                 [targetHero.id+"_snare"]:2, // reuse snare with count
                 [targetHero.id+"_snare2"]:true,
               }));
-              SFX.deadeye();
               addLog(`Deadeye Lock! ${targetHero.name} cannot move for 2 turns.`);
             }
             setCardPhase("idle");
@@ -2688,7 +2276,6 @@ export default function RelicboundApp(){
     // SPECIAL: Bulwark Stand (Gravon) — -4 damage while active
     if(defenderHero&&hexedHeroes[defenderHero.id+"_bulwark"]){
       const reduced=Math.max(0,finalDmg-4);
-      SFX.bulwark();
       addLog(`Bulwark Stand! Gravon reduces damage by 4 (${finalDmg}→${reduced}).`);
       finalDmg=reduced;
     }
@@ -2700,7 +2287,6 @@ export default function RelicboundApp(){
         const austiHero=board[austiKey].hero;
         finalDmg=Math.max(0,finalDmg-1);
         setHexedHeroes(prev=>{const n={...prev};delete n[austiHero.id+"_austi_focus"];return n;});
-        SFX.brace();
         addLog(`Focused Signal! Austi reduces damage by 1.`);
       }
     }
@@ -2713,14 +2299,12 @@ export default function RelicboundApp(){
         const jHero=board[jKey]?.hero;
         if(jHero){
           setHpMap(prev=>({...prev,[jHero.id]:Math.max(0,(prev[jHero.id]??jHero.maxHp)-1)}));
-          SFX.hit();
           addLog(`Tunnel Focus: Jovel loses 1 HP (weak shot).`);
         }
       } else if(finalDmg>=7){
         const jHero=board[aKey]?.hero;
         if(jHero){
           setHpMap(prev=>({...prev,[jHero.id]:Math.min(jHero.maxHp,(prev[jHero.id]??jHero.maxHp)+1)}));
-          SFX.heal();
           addLog(`Tunnel Focus: Jovel gains 1 HP (powerful shot)!`);
         }
       }
@@ -2739,7 +2323,7 @@ export default function RelicboundApp(){
         const newHp=Math.max(0,current-d);
         next[hero.id]=newHp;
         hitCount++;
-        if(d>0)SFX.hit();
+        if(d>0)
         if(newHp===0){
           if(lastStandActive){next[hero.id]=1;addLog(`${hero.name} survives at 1 HP — Last Stand!`);}
           else{addLog(`${hero.name} defeated!`);defeatHero(key,hero);}
@@ -2779,7 +2363,6 @@ export default function RelicboundApp(){
             return nb;
           });
           setHexedHeroes(prev=>({...prev,[board[aKey]?.hero?.id+"_snare"]:true}));
-          SFX.shieldPush();
           addLog(`Shield Push! ${board[aKey]?.hero?.name} pushed back, −1 movement next turn.`);
         }
       }
@@ -2800,14 +2383,12 @@ export default function RelicboundApp(){
       const target=board[key]?.hero;
       if(target){
         setHpMap(prev=>({...prev,[target.id]:Math.min(target.maxHp,(prev[target.id]??target.maxHp)+10)}));
-        SFX.lifeline();
         addLog(`Lifeline Surge! ${target.name} restored up to 10 HP.`);
       }
       setHealedOnTurn(turnNum);setHealedByPlayer(turn);
       setHealPhase("idle");setCardPhase("idle");
       return;
     }
-    SFX.diceRoll();
     setHealRolling(true);setHealPhase("rolling");
     let c=0;
     const iv=setInterval(()=>{
@@ -2868,7 +2449,6 @@ export default function RelicboundApp(){
   };
 
   const playCard=(card)=>{
-    SFX.cardPlay();
     const key=card.key;
     if(key==="power_strike"){
       setPlayingCard(card);setCardPhase("power-strike-ready");
@@ -2882,7 +2462,6 @@ export default function RelicboundApp(){
       addLog("Brace active — next attack against you deals -2 damage.");
     } else if(key==="overwatch"){
       discardCard(card);
-      SFX.overwatch();
       setOverwatchActive(true);
       addLog("Overwatch active — your Archer/Mage can attack this round!");
     } else if(key==="last_stand"){
@@ -2893,7 +2472,6 @@ export default function RelicboundApp(){
       addLog("Adrenaline Rush — select a hero to gain +2 movement.");
     } else if(key==="emergency_deploy"){
       discardCard(card);
-      SFX.emergencyDeploy();
       setSpawnsAvail(12);setSpawnsUsed(0);setSpawnBonus(0);
       setPhase("spawn-place");
       addLog("Emergency Deploy — spawn a hero for free!");
@@ -2903,11 +2481,9 @@ export default function RelicboundApp(){
     } else if(key==="disrupt_signal"){
       discardCard(card);
       const opp=turn===1?2:1;
-      SFX.disrupt();
       setHexedHeroes(prev=>({...prev,[`p${opp}_disrupted`]:true}));
       addLog("Disrupt Signal — opponent's next ability is cancelled!");
     } else if(key==="tactical_advance"){
-      SFX.tacticalAdvance();
       setPlayingCard(card);setCardPhase("tactical-advance");setCardHeroes([]);
       addLog("Tactical Advance — select up to 3 heroes to move 1 space each.");
     } else if(key==="rally_point"){
@@ -2930,7 +2506,6 @@ export default function RelicboundApp(){
   };
 
   const handleDraw=()=>{
-    SFX.cardDraw();
     const dk=turn===1?p1Deck:p2Deck;
     const disc=turn===1?p1Discard:p2Discard;
     const setDk=turn===1?setP1Deck:setP2Deck;
@@ -2969,7 +2544,6 @@ export default function RelicboundApp(){
       addLog(`${hero.name}'s Special was disrupted!`);
       return;
     }
-    SFX.special();
     setSpecialUsed(prev=>({...prev,[hero.id]:true}));
     setSpecialPhase("idle");setSpecialHeroKey(null);
 
@@ -3007,7 +2581,6 @@ export default function RelicboundApp(){
         newHp[h.id]=Math.min(h.maxHp,(newHp[h.id]??h.maxHp)+3);
       });
       setHpMap(newHp);
-      SFX.crescendo();
       addLog(`Crescendo! All ${myHeroes.length} allied heroes restored 3 HP.`);
     } else if(bid==="jovel"){
       // Deadeye Lock — after next attack, target gets 0 movement for 2 turns
@@ -3226,7 +2799,6 @@ export default function RelicboundApp(){
         if(!neighbors.length){aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn();}),600);return;}
         const next=neighbors[Math.floor(Math.random()*neighbors.length)];
         const nb={...curBoard}; nb[next]=nb[cur]; delete nb[cur];
-        SFX.step();
         setBoard({...nb});
         aiDelay(()=>doStep(next,remaining-1,nb),700);
       };
@@ -3407,7 +2979,6 @@ export default function RelicboundApp(){
         const step=aiBestStep(cur,targetKey);
         if(!step||curBoard[step]){aiDelay(()=>aiTryAttack(curBoard,()=>{aiEnd();endTurn();}),600);return;}
         const nb={...curBoard};nb[step]=nb[cur];delete nb[cur];
-        SFX.step();
         setBoard({...nb});
         aiDelay(()=>moveSteps2(step,stepsLeft-1,nb),700);
       };
@@ -3619,7 +3190,6 @@ export default function RelicboundApp(){
                             });
                             return next;
                           });
-                          SFX.cataclysm();
           addLog(`Cataclysm! Hit ${hits.length} hero${hits.length!==1?"es":""} for 3 damage each.`);
                           setCardPhase("idle");setPlayingCard(null);
                           return;
@@ -5012,37 +4582,27 @@ export default function RelicboundApp(){
     root.render(React.createElement(RelicboundApp, null));
   </script>
   <script>
-    var bar = document.getElementById('lbar');
-    var status = document.getElementById('lstatus');
+    var bar=document.getElementById('lbar'),status=document.getElementById('lstatus');
     function setP(p,m){bar.style.width=p+'%';status.textContent=m;}
-    window.addEventListener('load', function(){
+    window.addEventListener('load',function(){
       setP(20,'Compiling...');
       setTimeout(function(){
         setP(55,'Building game...');
         setTimeout(function(){
-          try {
-            var src = document.getElementById('app-src').textContent;
-            var out = Babel.transform(src, {
+          try{
+            var src=document.getElementById('app-src').textContent;
+            var out=Babel.transform(src,{
               presets:['react',['env',{targets:{browsers:['last 2 versions']}}]],
               plugins:['proposal-optional-chaining','proposal-nullish-coalescing-operator']
             }).code;
             setP(85,'Starting...');
             setTimeout(function(){
-              try {
-                var fn = new Function('React','ReactDOM',out);
-                fn(React,ReactDOM);
+              try{
+                new Function('React','ReactDOM',out)(React,ReactDOM);
                 document.getElementById('loading').style.display='none';
-              } catch(e){
-                status.textContent='Runtime error: '+e.message;
-                bar.style.background='#cc3a3a';
-                console.error(e);
-              }
+              }catch(e){status.textContent='Runtime error: '+e.message;bar.style.background='#cc3a3a';console.error(e);}
             },50);
-          } catch(e){
-            status.textContent='Compile error: '+e.message;
-            bar.style.background='#cc3a3a';
-            console.error(e);
-          }
+          }catch(e){status.textContent='Compile error: '+e.message;bar.style.background='#cc3a3a';console.error(e);}
         },200);
       },100);
     });
