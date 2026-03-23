@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- Relicbound v9 -->
+<!-- Relicbound: Ascension -->
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-  <title>Relicbound</title>
+  <title>Relicbound: Ascension</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
     body{background:#050302;overflow-x:hidden;}
@@ -24,7 +24,7 @@
 </head>
 <body>
   <div id="loading">
-    <div class="lt">Relicbound</div>
+    <div class="lt">Relicbound: Ascension</div>
     <div class="lbw"><div class="lb" id="lbar"></div></div>
     <div class="ls" id="lstatus">Loading...</div>
   </div>
@@ -269,7 +269,7 @@ function RelicboundLogo() {
           background:"linear-gradient(180deg,#e8e0c8 0%,#c8a840 40%,#e8d880 60%,#a88830 100%)",
           WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text",
           display:"block",filter:"drop-shadow(0 0 12px rgba(200,168,64,0.3))",
-        }}>Relicbound</span>
+        }}>Relicbound: Ascension</span>
       </div>
     </div>
   );
@@ -410,34 +410,73 @@ function HeroToken({hero,wide,movable,selected,hp,isCarrying,playerColor,statusE
 }
 
 // ─── BENCH CARD ──────────────────────────────────────────────
-function BenchCard({hero,selected,onSelect,canSelect}){
+function BenchCard({hero,selected,onSelect,canSelect,onInfo}){
+  // Consistent class colours by role
+  const clsColor=(cls)=>{
+    if(!cls)return"#c8a840";
+    if(cls.includes("Vanguard"))return"#e07a20";
+    if(cls.includes("Tank"))return"#4a8aff";
+    if(cls.includes("Healer"))return"#3aaa6a";
+    if(cls.includes("Range")||cls.includes("Mage")||cls.includes("Archer"))return"#a060ee";
+    return"#c8a840";
+  };
+  const roleColor=clsColor(hero.cls);
   return(
-    <div onClick={()=>canSelect&&onSelect(hero)} style={{
-      width:"74px",borderRadius:"5px",overflow:"hidden",
-      border:`1px solid ${selected?hero.accent:"#2a2010"}`,
-      cursor:canSelect?"pointer":"default",transition:"all 0.15s",
-      boxShadow:selected?`0 0 12px ${hero.color}88`:"none",
-      opacity:canSelect?1:0.4,background:"#0a0806",
-    }}>
-      <div style={{height:"54px",overflow:"hidden",position:"relative"}}>
-        <img src={HERO_IMGS[hero.imgKey]} style={{width:"100%",height:"100%",objectFit:"cover",objectPosition:"top 10%"}} alt={hero.name}/>
-        {selected&&<div style={{position:"absolute",inset:0,background:"rgba(58,204,148,0.25)",border:"2px solid #3acc94"}}/>}
-        {hero.tank&&<div style={{position:"absolute",bottom:"2px",right:"2px",
-          background:"#c8a84099",borderRadius:"2px",padding:"1px 3px",
-          fontSize:"0.38rem",color:"#fff",letterSpacing:"0.05em"}}>2-TILE</div>}
+    <div
+      onClick={()=>canSelect&&onSelect(hero)}
+      style={{
+        borderRadius:"6px",overflow:"hidden",
+        border:`2px solid ${selected?"#3acc94":canSelect?roleColor+"99":"#2a2010"}`,
+        transition:"all 0.15s",
+        boxShadow:selected?"0 0 14px #3acc9488":canSelect?`0 0 8px ${roleColor}44`:"none",
+        background:`linear-gradient(160deg,${roleColor}18,#080604)`,
+        display:"flex",flexDirection:"column",
+        cursor:canSelect?"pointer":"default",
+        opacity:canSelect||selected?1:0.5,
+        position:"relative",
+      }}>
+      {/* Header strip */}
+      <div style={{
+        background:`linear-gradient(90deg,${roleColor}cc,${roleColor}55)`,
+        padding:"3px 6px",
+        display:"flex",alignItems:"center",justifyContent:"space-between"
+      }}>
+        <span style={{fontSize:"0.62rem",color:"#fff",fontWeight:"bold",
+          fontFamily:"Georgia,serif",letterSpacing:"0.03em",
+          whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"75%"}}>
+          {hero.name}
+        </span>
+        {hero.tank&&<span style={{fontSize:"0.38rem",color:"#fff",
+          background:"rgba(0,0,0,0.4)",borderRadius:"3px",padding:"1px 3px",flexShrink:0}}>
+          2T
+        </span>}
       </div>
-      <div style={{padding:"3px 4px 4px",borderTop:`1px solid ${hero.accent}44`}}>
-        <div style={{fontSize:"0.5rem",color:"#c8a840",textAlign:"center",marginBottom:"1px",
-          whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{hero.name}</div>
-        <div style={{fontSize:"0.38rem",color:"#5a4a28",textAlign:"center",textTransform:"uppercase",
-          marginBottom:"3px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{hero.cls}</div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:"0.4rem",
-          color:"#7a6a40",borderTop:"1px solid #1e1808",paddingTop:"2px"}}>
-          <span>{hero.hp}HP</span>
-          <span style={{color:"#c8a84099"}}>Cost {hero.spawnCost||6}</span>
-          <span>{hero.move}</span>
+      {/* Stats body */}
+      <div style={{padding:"4px 6px 20px",display:"flex",flexDirection:"column",gap:"2px",flex:1}}>
+        <div style={{fontSize:"0.48rem",color:roleColor,letterSpacing:"0.04em",
+          textTransform:"uppercase",marginBottom:"1px",
+          whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{hero.cls}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1px 4px"}}>
+          <div style={{fontSize:"0.5rem",color:"#c8a840"}}><span style={{color:"#5a4a20"}}>HP </span>{hero.hp}</div>
+          <div style={{fontSize:"0.5rem",color:"#c8a840"}}><span style={{color:"#5a4a20"}}>ATK </span>{hero.atk}</div>
+          <div style={{fontSize:"0.5rem",color:"#c8a840"}}><span style={{color:"#5a4a20"}}>MOV </span>{hero.move}</div>
+          <div style={{fontSize:"0.5rem",color:"#c8a840"}}><span style={{color:"#5a4a20"}}>CST </span>{hero.spawnCost||6}</div>
         </div>
       </div>
+      {/* Info button — bottom left corner */}
+      <button
+        onClick={(e)=>{e.stopPropagation();onInfo&&onInfo(hero);}}
+        style={{position:"absolute",bottom:"3px",left:"3px",
+          width:"18px",height:"18px",borderRadius:"50%",
+          background:"rgba(0,0,0,0.55)",border:`1px solid ${roleColor}66`,
+          color:roleColor,cursor:"pointer",
+          fontSize:"0.42rem",fontWeight:"bold",fontFamily:"Georgia,serif",
+          display:"flex",alignItems:"center",justifyContent:"center",
+          lineHeight:1,padding:0}}>i</button>
+      {/* Selected indicator */}
+      {selected&&<div style={{position:"absolute",bottom:"3px",right:"3px",
+        fontSize:"0.38rem",color:"#3acc94",letterSpacing:"0.04em",
+        textTransform:"uppercase",fontFamily:"Georgia,serif"}}>✓</div>}
     </div>
   );
 }
@@ -769,7 +808,7 @@ function ActionBtn({label,color,accent,onClick,disabled}){
         border:`1px solid ${hov&&!disabled?accent:accent+"44"}`,
         borderRadius:"3px",padding:"7px 8px",
         color:disabled?"#282008":hov?"#e8d060":"#9a8030",
-        fontSize:"0.62rem",letterSpacing:"0.06em",
+        fontSize:"0.72rem",letterSpacing:"0.06em",
         cursor:disabled?"default":"pointer",
         fontFamily:"Georgia,serif",width:"100%",
         transition:"all 0.12s",textAlign:"left",
@@ -803,7 +842,7 @@ function RulesPage({onBack}){
       <div style={{maxWidth:"520px",margin:"0 auto",padding:"24px 20px 60px"}}>
         <div style={{textAlign:"center",marginBottom:"28px"}}>
           <div style={{fontSize:"1.8rem",color:"#e8d080",fontFamily:"'Palatino Linotype',Georgia,serif",
-            fontWeight:"bold",letterSpacing:"0.06em"}}>RELICBOUND</div>
+            fontWeight:"bold",letterSpacing:"0.06em"}}>RELICBOUND: ASCENSION</div>
           <div style={{fontSize:"0.5rem",color:"#5a4a28",letterSpacing:"0.2em",marginTop:"4px"}}>
             TACTICAL BOARD GAME — RULEBOOK
           </div>
@@ -1220,7 +1259,7 @@ function StartMenu({onStart,onRules,onCodex}){
           backgroundClip:"text",
           lineHeight:"1",
           filter:"drop-shadow(0 0 30px rgba(200,168,64,0.25))",
-        }}>RELICBOUND</div>
+        }}>RELICBOUND: ASCENSION</div>
 
         {/* Subtitle */}
         <div style={{marginTop:"10px",display:"flex",alignItems:"center",
@@ -1296,7 +1335,7 @@ function StartMenu({onStart,onRules,onCodex}){
       {/* Version */}
       <div style={{position:"absolute",bottom:"10px",
         fontSize:"0.36rem",color:"#2a2010",letterSpacing:"0.1em"}}>
-        RELICBOUND · PROTOTYPE
+        RELICBOUND: ASCENSION
       </div>
     </div>
   );
@@ -1305,30 +1344,36 @@ function StartMenu({onStart,onRules,onCodex}){
 
 // ─── LOG WIDGET ──────────────────────────────────────────────
 function LogWidget({log}){
-  const[open,setOpen]=useState(true);
+  const[open,setOpen]=useState(false);
   return(
-    <div style={{fontFamily:"Georgia,serif",width:"100%",padding:"8px 14px 6px"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:open?"6px":"0"}}>
-        <span style={{fontSize:"0.54rem",color:"#5a4a20",letterSpacing:"0.14em",textTransform:"uppercase"}}>
+    <div style={{fontFamily:"Georgia,serif",width:"100%",padding:"6px 12px 4px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:open?"5px":"0"}}>
+        <span style={{fontSize:"0.6rem",color:"#7a6a30",letterSpacing:"0.14em",textTransform:"uppercase",fontWeight:"bold"}}>
           Battle Log
         </span>
         <button onClick={()=>setOpen(o=>!o)} style={{
-          background:"none",border:"none",color:"#3a3010",cursor:"pointer",
-          fontSize:"0.62rem",padding:"0 2px",lineHeight:1,fontFamily:"Georgia,serif"}}>
+          background:"none",border:"none",color:"#7a6a30",cursor:"pointer",
+          fontSize:"0.65rem",padding:"0 4px",lineHeight:1,fontFamily:"Georgia,serif"}}>
           {open?"▲":"▼"}
         </button>
       </div>
       {open&&(
-        <div style={{display:"flex",flexDirection:"column",gap:"3px",maxHeight:"90px",overflowY:"auto"}}>
+        <div style={{display:"flex",flexDirection:"column",gap:"3px",maxHeight:"100px",overflowY:"auto"}}>
           {log.slice(0,8).map((l,i)=>(
             <div key={i} style={{
-              fontSize:"0.5rem",
-              color:i===0?"#a09040":"#3a3010",
+              fontSize:"0.55rem",
+              color:i===0?"#c8a840":"#5a4a20",
               lineHeight:"1.5",
               paddingBottom:"2px",
               borderBottom:i<Math.min(log.length,8)-1?"1px solid #141008":"none",
             }}>{l}</div>
           ))}
+        </div>
+      )}
+      {!open&&log[0]&&(
+        <div style={{fontSize:"0.52rem",color:"#5a4a20",lineHeight:"1.4",opacity:0.8,
+          overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+          {log[0]}
         </div>
       )}
     </div>
@@ -1363,27 +1408,33 @@ function RelicboundApp(){
   if(screen==="codex") return <CodexPage onBack={()=>setScreen("menu")}/>;
   if(screen==="game") return(
     <div>
-      <div style={{position:"fixed",top:0,left:0,right:0,height:"36px",
-        background:"#080604",borderBottom:"1px solid #1a1408",
+      <div style={{position:"fixed",top:0,left:0,right:0,height:"48px",
+        background:"#080604",borderBottom:"1px solid #2a2010",
         display:"flex",alignItems:"center",justifyContent:"space-between",
-        padding:"0 12px",zIndex:50}}>
+        padding:"0 16px",zIndex:50}}>
         <button onClick={()=>setScreen("menu")} style={{
-          background:"none",border:"1px solid #2a2010",borderRadius:"3px",
-          padding:"4px 10px",color:"#5a4a28",cursor:"pointer",
-          fontSize:"0.45rem",letterSpacing:"0.08em",fontFamily:"Georgia,serif"}}>
+          background:"#0e0c08",border:"1px solid #3a2a14",borderRadius:"4px",
+          padding:"8px 18px",color:"#c8a840",cursor:"pointer",
+          fontSize:"0.7rem",letterSpacing:"0.1em",fontFamily:"Georgia,serif",
+          transition:"all 0.15s"}}
+          onMouseEnter={e=>{e.target.style.borderColor="#c8a840";}}
+          onMouseLeave={e=>{e.target.style.borderColor="#3a2a14";}}>
           Menu
         </button>
-        <div style={{fontSize:"0.55rem",color:"#3a3020",letterSpacing:"0.2em",textTransform:"uppercase"}}>
-          Relicbound
+        <div style={{fontSize:"0.75rem",color:"#5a4a28",letterSpacing:"0.25em",textTransform:"uppercase"}}>
+          Relicbound: Ascension
         </div>
         <button onClick={()=>setScreen("rules")} style={{
-          background:"none",border:"1px solid #2a2010",borderRadius:"3px",
-          padding:"4px 10px",color:"#5a4a28",cursor:"pointer",
-          fontSize:"0.45rem",letterSpacing:"0.08em",fontFamily:"Georgia,serif"}}>
+          background:"#0e0c08",border:"1px solid #3a2a14",borderRadius:"4px",
+          padding:"8px 18px",color:"#c8a840",cursor:"pointer",
+          fontSize:"0.7rem",letterSpacing:"0.1em",fontFamily:"Georgia,serif",
+          transition:"all 0.15s"}}
+          onMouseEnter={e=>{e.target.style.borderColor="#c8a840";}}
+          onMouseLeave={e=>{e.target.style.borderColor="#3a2a14";}}>
           Rules
         </button>
       </div>
-      <div style={{paddingTop:"36px"}}>
+      <div style={{paddingTop:"48px"}}>
         <RelicboundGame gameMode={gameMode} difficulty={difficulty}/>
       </div>
     </div>
@@ -3188,47 +3239,49 @@ function RelicboundGame({gameMode,difficulty}){
       fontFamily:"Georgia,serif",userSelect:"none",WebkitUserSelect:"none"}}>
 
       {/* Score + Turn banner - sticky at top */}
-      <div style={{position:"sticky",top:0,zIndex:10,background:"#080604",
-        borderBottom:"1px solid #1a1408",
-        display:"flex",gap:"8px",alignItems:"center",padding:"4px 8px",
+      <div style={{position:"sticky",top:"48px",zIndex:10,background:"#080604",
+        borderBottom:"1px solid #2a2010",
+        display:"flex",gap:"12px",alignItems:"center",padding:"6px 12px",
         flexWrap:"wrap",justifyContent:"center",width:"100%"}}>
-        <div style={{background:"#0a0806",border:"1px solid #2a2010",borderRadius:"4px",
-          padding:"3px 10px",display:"flex",gap:"10px",alignItems:"center"}}>
+        <div style={{background:"#0a0806",border:"1px solid #3a2a10",borderRadius:"6px",
+          padding:"5px 16px",display:"flex",gap:"16px",alignItems:"center"}}>
           <div style={{textAlign:"center"}}>
-            <div style={{fontSize:"0.42rem",color:"#4a6aaa",textTransform:"uppercase",letterSpacing:"0.08em"}}>P1</div>
-            <div style={{display:"flex",gap:"3px",justifyContent:"center",marginBottom:"2px"}}>
+            <div style={{fontSize:"0.7rem",color:"#6a9aff",textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:"bold"}}>P1</div>
+            <div style={{display:"flex",gap:"4px",justifyContent:"center",marginBottom:"3px"}}>
               {Array.from({length:ROUNDS_TO_WIN}).map((_,i)=>(
-                <div key={i} style={{width:"6px",height:"6px",borderRadius:"50%",
-                  background:i<p1RoundWins?"#4a6aaa":"#1a1a2a"}}/>
+                <div key={i} style={{width:"8px",height:"8px",borderRadius:"50%",
+                  background:i<p1RoundWins?"#4a8aff":"#1a1a2a",
+                  boxShadow:i<p1RoundWins?"0 0 4px #4a8aff":""}}/>
               ))}
             </div>
-            <div style={{fontSize:"0.9rem",color:"#6a9aff",fontFamily:"Georgia",lineHeight:"1"}}>
-              {p1Score}<span style={{fontSize:"0.45rem",color:"#2a3a5a"}}>/{RELICS_TO_WIN}</span>
+            <div style={{fontSize:"1.4rem",color:"#6a9aff",fontFamily:"Georgia",lineHeight:"1",fontWeight:"bold"}}>
+              {p1Score}<span style={{fontSize:"0.6rem",color:"#3a5a9a"}}>/{RELICS_TO_WIN}</span>
             </div>
           </div>
-          <div style={{textAlign:"center"}}>
-            <div style={{fontSize:"0.4rem",color:"#5a4a28",letterSpacing:"0.06em"}}>R{roundNum}</div>
-            <div style={{fontSize:"0.5rem",color:"#c8a840"}}>✦</div>
+          <div style={{textAlign:"center",padding:"0 4px"}}>
+            <div style={{fontSize:"0.55rem",color:"#5a4a28",letterSpacing:"0.08em"}}>RND {roundNum}</div>
+            <div style={{fontSize:"0.8rem",color:"#c8a840"}}>✦</div>
           </div>
           <div style={{textAlign:"center"}}>
-            <div style={{fontSize:"0.42rem",color:"#aa4a4a",textTransform:"uppercase",letterSpacing:"0.08em"}}>P2</div>
-            <div style={{display:"flex",gap:"3px",justifyContent:"center",marginBottom:"2px"}}>
+            <div style={{fontSize:"0.7rem",color:"#ff7a5a",textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:"bold"}}>P2</div>
+            <div style={{display:"flex",gap:"4px",justifyContent:"center",marginBottom:"3px"}}>
               {Array.from({length:ROUNDS_TO_WIN}).map((_,i)=>(
-                <div key={i} style={{width:"6px",height:"6px",borderRadius:"50%",
-                  background:i<p2RoundWins?"#aa4a4a":"#2a1a1a"}}/>
+                <div key={i} style={{width:"8px",height:"8px",borderRadius:"50%",
+                  background:i<p2RoundWins?"#cc4a4a":"#2a1a1a",
+                  boxShadow:i<p2RoundWins?"0 0 4px #cc4a4a":""}}/>
               ))}
             </div>
-            <div style={{fontSize:"0.9rem",color:"#ff7a5a",fontFamily:"Georgia",lineHeight:"1"}}>
-              {p2Score}<span style={{fontSize:"0.45rem",color:"#5a2a2a"}}>/{RELICS_TO_WIN}</span>
+            <div style={{fontSize:"1.4rem",color:"#ff7a5a",fontFamily:"Georgia",lineHeight:"1",fontWeight:"bold"}}>
+              {p2Score}<span style={{fontSize:"0.6rem",color:"#6a2a2a"}}>/{RELICS_TO_WIN}</span>
             </div>
           </div>
         </div>
-        <div style={{background:"#0c0a05",border:"1px solid #262010",borderRadius:"4px",
-          padding:"4px 14px",display:"flex",gap:"10px",alignItems:"center"}}>
-          <div style={{width:"8px",height:"8px",borderRadius:"50%",
+        <div style={{background:"#0c0a05",border:"1px solid #3a2a10",borderRadius:"6px",
+          padding:"6px 18px",display:"flex",gap:"12px",alignItems:"center"}}>
+          <div style={{width:"10px",height:"10px",borderRadius:"50%",
             background:turn===1?"#4a8aff":"#ff6040",
-            boxShadow:turn===1?"0 0 6px #4a8aff":"0 0 6px #ff6040"}}/>
-          <span style={{fontSize:"0.65rem",color:"#c8a840",letterSpacing:"0.12em"}}>
+            boxShadow:turn===1?"0 0 8px #4a8aff":"0 0 8px #ff6040"}}/>
+          <span style={{fontSize:"0.85rem",color:"#c8a840",letterSpacing:"0.14em",fontWeight:"bold"}}>
             PLAYER {turn} — TURN {turnNum}
           </span>
         </div>
@@ -3240,19 +3293,19 @@ function RelicboundGame({gameMode,difficulty}){
       {isDesktop ? (
 
         /* DESKTOP */
-        <div style={{display:"flex",flex:1,minHeight:0,height:"calc(100vh - 60px)"}}>
+        <div style={{display:"flex",flex:1,minHeight:0,height:"calc(100vh - 110px)"}}>
 
           {/* Board */}
-          <div style={{flex:"0 0 auto",display:"flex",alignItems:"center",
-            justifyContent:"center",padding:"16px",overflowX:"auto",
-            borderRight:"1px solid #1a1408",
+          <div style={{flex:"1 1 0",display:"flex",alignItems:"center",
+            justifyContent:"center",padding:"12px",overflowX:"auto",overflowY:"auto",
+            borderRight:"1px solid #2a2010",
             background:"linear-gradient(160deg,#0c0a06,#080604)"}}>
-            <div style={{perspective:"1100px",perspectiveOrigin:"50% 85%",flexShrink:0}}>
+            <div style={{perspective:"1000px",perspectiveOrigin:"50% 75%",flexShrink:0}}>
               <div style={{
-                transform:boardFlipped?"rotateX(32deg) rotateZ(180deg)":"rotateX(32deg)",
+                transform:boardFlipped?"rotateX(18deg) rotateZ(180deg)":"rotateX(18deg)",
                 transformOrigin:"center center",transformStyle:"flat",
                 transition:"transform 0.4s ease"}}>
-                <div style={{position:"relative",padding:"18px",
+                <div style={{position:"relative",padding:"14px",
                   background:"linear-gradient(145deg,#0e0b06,#070504,#0e0b06)",
                   boxShadow:"0 0 0 1px #181408,0 40px 100px rgba(0,0,0,0.98)"}}>
                   <RuneBorder W={600} H={576}/>
@@ -3320,7 +3373,7 @@ function RelicboundGame({gameMode,difficulty}){
                             });
                             return next;
                           });
-          addLog(`Cataclysm! Hit ${hits.length} hero${hits.length!==1?"es":""} for 3 damage each.`);
+                          addLog(`Cataclysm! Hit ${hits.length} hero${hits.length!==1?"es":""} for 3 damage each.`);
                           setCardPhase("idle");setPlayingCard(null);
                           return;
                         }
@@ -3433,27 +3486,28 @@ function RelicboundGame({gameMode,difficulty}){
               )}
               </div>
               </div>{/* end row labels + grid flex */}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
           {/* Right panel */}
-          <div style={{flex:1,display:"flex",flexDirection:"column",
+          <div style={{flex:"0 0 500px",display:"flex",flexDirection:"column",
             overflow:"hidden",background:"#080604",
-            minWidth:"320px",position:"relative"}}>
+            position:"relative"}}>
 
             {/* Bench */}
-            <div style={{padding:"12px 14px",borderBottom:"1px solid #1a1408",flexShrink:0,maxHeight:"220px",overflowY:"auto"}}>
-              <div style={{fontSize:"0.65rem",color:"#5a4a20",letterSpacing:"0.12em",
-                textTransform:"uppercase",marginBottom:"10px"}}>
+            <div style={{padding:"8px 10px",borderBottom:"1px solid #2a2010",flexShrink:0}}>
+              <div style={{fontSize:"0.62rem",color:"#7a6a30",letterSpacing:"0.12em",
+                textTransform:"uppercase",marginBottom:"6px"}}>
                 P{turn} Bench — {(turn===1?p1Bench:p2Bench).length} Ready
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"6px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"4px"}}>
                 {(turn===1?p1Bench:p2Bench).map(h=>(
                 <BenchCard key={h.id} hero={h}
                   selected={selectedHero?.id===h.id}
                   canSelect={phase==="spawn-place"&&(spawnsAvail-spawnsUsed)>=(h.spawnCost||3)}
+                  onInfo={(h)=>setPendingSpawnHero(h)}
                   onSelect={()=>{
                     if(phase==="spawn-place"&&(spawnsAvail-spawnsUsed)>=(h.spawnCost||3)){
                       setSelectedHero(h);
@@ -3464,20 +3518,88 @@ function RelicboundGame({gameMode,difficulty}){
               </div>
             </div>
 
+            {/* Deck + Discard */}
+            <div style={{borderTop:"1px solid #1a1408",padding:"6px 12px",
+              flexShrink:0,background:"#080604",
+              display:"flex",gap:"10px",alignItems:"center",justifyContent:"center"}}>
+              <div style={{textAlign:"center"}}>
+                <DeckPile count={deck.length}/>
+                <div style={{fontSize:"0.52rem",color:"#4a3a18",letterSpacing:"0.08em",marginTop:"2px",textTransform:"uppercase"}}>
+                  Deck {deck.length}
+                </div>
+              </div>
+              <div style={{textAlign:"center"}}>
+                <DiscardPile pile={discard}/>
+                <div style={{fontSize:"0.52rem",color:"#4a3a18",letterSpacing:"0.08em",marginTop:"2px",textTransform:"uppercase"}}>
+                  Discard {discard.length}
+                </div>
+              </div>
+            </div>
+
+            {/* Hand */}
+            <div style={{borderTop:"1px solid #1a1408",padding:"7px 12px",
+              flexShrink:0,background:"#080604"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"7px"}}>
+                <div style={{fontSize:"0.7rem",color:"#8a7a40",letterSpacing:"0.12em",textTransform:"uppercase",fontWeight:"bold"}}>
+                  Hand — {hand.length} card{hand.length!==1?"s":""}
+                </div>
+                {hand.length>0&&(
+                <button onClick={()=>setHandRevealed(r=>!r)} style={{
+                  background:handRevealed?"#1a2a0a":"#1a1408",
+                  border:`1px solid ${handRevealed?"#4a8a2a":"#3a2a10"}`,
+                  borderRadius:"4px",padding:"8px 18px",
+                  color:handRevealed?"#7acc4a":"#c8a840",
+                  fontSize:"0.65rem",fontWeight:"bold",letterSpacing:"0.1em",textTransform:"uppercase",
+                  cursor:"pointer",fontFamily:"Georgia,serif"}}>
+                  {handRevealed?"Hide":"Reveal"}
+                </button>
+              )}
+              </div>
+              <div style={{display:"flex",gap:"4px",flexWrap:"wrap",alignItems:"flex-end"}}>
+                {hand.length===0
+                ?<div style={{fontSize:"0.5rem",color:"#201c08",padding:"10px 16px",
+                    border:"1px dashed #181408",borderRadius:"4px",alignSelf:"center"}}>
+                    No cards — draw on your turn
+                  </div>
+                :!handRevealed
+                ?<div style={{display:"flex",gap:"4px",alignItems:"center",alignSelf:"center"}}>
+                  {hand.map((_,i)=>(
+                    <div key={i} style={{width:"44px",height:"62px",borderRadius:"4px",
+                      background:"linear-gradient(145deg,#0e0c08,#1a1812,#0e0c08)",
+                      border:"1px solid #3a3020",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                      <img src={EMBLEM} style={{width:"20px",height:"20px",opacity:0.35}} alt=""/>
+                    </div>
+                  ))}
+                  <div style={{fontSize:"0.44rem",color:"#3a3010",marginLeft:"6px",letterSpacing:"0.06em",alignSelf:"center"}}>
+                    Tap Reveal<br/>to view
+                  </div>
+                </div>
+                :hand.map((c,i)=>(
+                  <div key={i} style={{position:"relative",flexShrink:0,cursor:"pointer"}}
+                    onClick={()=>{if(window.confirm(`Play ${c.name}?`))playCard(c);}}>
+                    <ActionCard card={c} inHand={true}/>
+                    <button onClick={e=>{e.stopPropagation();setInspectCard(c);}}
+                      style={{position:"absolute",top:"2px",right:"2px",
+                        background:"rgba(0,0,0,0.85)",border:"1px solid #c8a840",
+                        borderRadius:"50%",width:"22px",height:"22px",color:"#c8a840",
+                        cursor:"pointer",fontSize:"0.55rem",display:"flex",
+                        alignItems:"center",justifyContent:"center",
+                        lineHeight:"1",padding:0,zIndex:10,fontWeight:"bold"}}>i</button>
+                  </div>
+                ))
+              }
+              </div>
+            </div>
+
+            {/* Log */}
+            <div style={{borderTop:"1px solid #1a1408",flexShrink:0,background:"#080604"}}>
+              <LogWidget log={log}/>
+            </div>
+
             {/* Action */}
             <div style={{flex:1,padding:"12px 14px",display:"flex",flexDirection:"column",
-              gap:"7px",overflowY:"auto",minHeight:"180px"}}>
-              <div style={{fontSize:"0.65rem",color:"#3a3010",textTransform:"uppercase",
-                letterSpacing:"0.14em",textAlign:"center"}}>{
-                phase==="choose"?"Your Action":
-                phase==="rolling"?"Rolling...":
-                phase==="spawn-place"?"Place Hero":
-                phase==="spawn-decision"?"Spawn Decision":
-                phase==="move-declare"?"Select Hero to Move":
-                phase==="move-execute"?`${Math.max(0,movesLeft)} spaces remaining`:
-                phase==="post-action"?"Free Actions":
-                phase==="confirm-end"?"End Turn?":""
-              }</div>
+              gap:"7px",overflowY:"auto",minHeight:"120px"}}>
+
               {/* Dice row - only show the active dice set */}
             <div style={{display:"flex",justifyContent:"center",gap:"12px",minHeight:"52px",alignItems:"center"}}>
               {(attackRolling||attackSettling||attackDice.some(d=>d!==null))?(
@@ -3494,21 +3616,10 @@ function RelicboundGame({gameMode,difficulty}){
               ):null}
             </div>
 
-            {/* Deck + discard */}
-            <div style={{display:"flex",gap:"6px",justifyContent:"center",alignItems:"flex-end",
-              paddingBottom:"6px",borderBottom:"1px solid #1a1408"}}>
-              <div style={{textAlign:"center"}}>
-                <DeckPile count={deck.length}/>
-                <div style={{fontSize:"0.5rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DECK {deck.length}</div>
-              </div>
-              <div style={{textAlign:"center"}}>
-                <DiscardPile pile={discard}/>
-                <div style={{fontSize:"0.5rem",color:"#2a2010",letterSpacing:"0.1em",marginTop:"2px"}}>DISCARD {discard.length}</div>
-              </div>
-            </div>
+
 
             {/* Phase label */}
-            <div style={{fontSize:"0.58rem",color:"#3a3010",textTransform:"uppercase",
+            <div style={{fontSize:"0.62rem",color:"#7a6a30",textTransform:"uppercase",
               letterSpacing:"0.12em",textAlign:"center"}}>{
               phase==="choose"?"Your Action":
               phase==="rolling"?"Rolling...":
@@ -3572,7 +3683,7 @@ function RelicboundGame({gameMode,difficulty}){
             {/* Card select-hero UI */}
             {cardPhase==="select-hero"&&playingCard&&(
               <div style={{display:"flex",flexDirection:"column",gap:"4px"}}>
-                <div style={{fontSize:"0.6rem",color:"#c8a840",textAlign:"center"}}>
+                <div style={{fontSize:"0.72rem",color:"#c8a840",textAlign:"center",fontWeight:"bold"}}>
                   {playingCard.key==="second_wind"?"Select hero +3HP":
                    playingCard.key==="forced_march"?"Select hero +4 move":
                    playingCard.key==="adrenaline_rush"?"Select hero +2 move":"Select hero"}
@@ -3837,70 +3948,10 @@ function RelicboundGame({gameMode,difficulty}){
 
             </div>
 
-            {/* Log */}
-            <div style={{borderTop:"1px solid #1a1408",flexShrink:0,background:"#080604"}}>
-              <LogWidget log={log}/>
-            </div>
-
-            {/* Hand */}
-            <div style={{borderTop:"1px solid #1a1408",padding:"12px 14px",
-              flexShrink:0,background:"#080604"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"7px"}}>
-                <div style={{fontSize:"0.65rem",color:"#3a2e0c",letterSpacing:"0.12em",textTransform:"uppercase"}}>
-                  Hand — {hand.length} card{hand.length!==1?"s":""}
-                </div>
-                {hand.length>0&&(
-                <button onClick={()=>setHandRevealed(r=>!r)} style={{
-                  background:handRevealed?"#1a2a0a":"#1a1408",
-                  border:`1px solid ${handRevealed?"#4a8a2a":"#3a2a10"}`,
-                  borderRadius:"4px",padding:"6px 14px",
-                  color:handRevealed?"#7acc4a":"#6a5a28",
-                  fontSize:"0.58rem",letterSpacing:"0.1em",textTransform:"uppercase",
-                  cursor:"pointer",fontFamily:"Georgia,serif"}}>
-                  {handRevealed?"Hide":"Reveal"}
-                </button>
-              )}
-              </div>
-              <div style={{display:"flex",gap:"5px",flexWrap:"wrap",alignItems:"flex-end",minHeight:"72px"}}>
-                {hand.length===0
-                ?<div style={{fontSize:"0.5rem",color:"#201c08",padding:"10px 16px",
-                    border:"1px dashed #181408",borderRadius:"4px",alignSelf:"center"}}>
-                    No cards — draw on your turn
-                  </div>
-                :!handRevealed
-                ?<div style={{display:"flex",gap:"4px",alignItems:"center",alignSelf:"center"}}>
-                  {hand.map((_,i)=>(
-                    <div key={i} style={{width:"58px",height:"80px",borderRadius:"5px",
-                      background:"linear-gradient(145deg,#0e0c08,#1a1812,#0e0c08)",
-                      border:"1px solid #3a3020",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                      <img src={EMBLEM} style={{width:"28px",height:"28px",opacity:0.35}} alt=""/>
-                    </div>
-                  ))}
-                  <div style={{fontSize:"0.44rem",color:"#3a3010",marginLeft:"6px",letterSpacing:"0.06em",alignSelf:"center"}}>
-                    Tap Reveal<br/>to view
-                  </div>
-                </div>
-                :hand.map((c,i)=>(
-                  <div key={i} style={{position:"relative",flexShrink:0,cursor:"pointer"}}
-                    onClick={()=>playCard(c)}>
-                    <ActionCard card={c} inHand={true}/>
-                    <button onClick={e=>{e.stopPropagation();setInspectCard(c);}}
-                      style={{position:"absolute",top:"2px",right:"2px",
-                        background:"rgba(0,0,0,0.75)",border:"1px solid #3a3020",
-                        borderRadius:"50%",width:"14px",height:"14px",color:"#c8a840",
-                        cursor:"pointer",fontSize:"0.4rem",display:"flex",
-                        alignItems:"center",justifyContent:"center",
-                        lineHeight:"1",padding:0,zIndex:10}}>i</button>
-                  </div>
-                ))
-              }
-              </div>
-            </div>
-
           </div>
-        </div>
 
-      ) : (
+        </div>
+                  ) : (
 
         /* MOBILE */
         <div style={{width:"100%",display:"flex",flexDirection:"column",position:"relative"}}>
@@ -4111,11 +4162,12 @@ function RelicboundGame({gameMode,difficulty}){
                 textTransform:"uppercase",marginBottom:"6px"}}>
                 P{turn} Bench — {(turn===1?p1Bench:p2Bench).length} Ready
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:"5px"}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"4px"}}>
                 {(turn===1?p1Bench:p2Bench).map(h=>(
                 <BenchCard key={h.id} hero={h}
                   selected={selectedHero?.id===h.id}
                   canSelect={phase==="spawn-place"&&(spawnsAvail-spawnsUsed)>=(h.spawnCost||3)}
+                  onInfo={(h)=>setPendingSpawnHero(h)}
                   onSelect={()=>{
                     if(phase==="spawn-place"&&(spawnsAvail-spawnsUsed)>=(h.spawnCost||3)){
                       setSelectedHero(h);
@@ -4519,15 +4571,15 @@ function RelicboundGame({gameMode,difficulty}){
                 </div>
                 :hand.map((c,i)=>(
                   <div key={i} style={{position:"relative",flexShrink:0,cursor:"pointer"}}
-                    onClick={()=>playCard(c)}>
+                    onClick={()=>{if(window.confirm(`Play ${c.name}?`))playCard(c);}}>
                     <ActionCard card={c} inHand={true}/>
                     <button onClick={e=>{e.stopPropagation();setInspectCard(c);}}
                       style={{position:"absolute",top:"2px",right:"2px",
-                        background:"rgba(0,0,0,0.75)",border:"1px solid #3a3020",
-                        borderRadius:"50%",width:"14px",height:"14px",color:"#c8a840",
-                        cursor:"pointer",fontSize:"0.4rem",display:"flex",
+                        background:"rgba(0,0,0,0.85)",border:"1px solid #c8a840",
+                        borderRadius:"50%",width:"22px",height:"22px",color:"#c8a840",
+                        cursor:"pointer",fontSize:"0.55rem",display:"flex",
                         alignItems:"center",justifyContent:"center",
-                        lineHeight:"1",padding:0,zIndex:10}}>i</button>
+                        lineHeight:"1",padding:0,zIndex:10,fontWeight:"bold"}}>i</button>
                   </div>
                 ))
               }
